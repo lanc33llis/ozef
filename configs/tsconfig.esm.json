@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "jsx": "react"
+  },
+  "include": ["../index.ts"]
+}
