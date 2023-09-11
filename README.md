@@ -48,7 +48,8 @@ const NewFlowForm = ozef({
 
 <NewFlowForm
   className="flex flex-col gap-2"
-  onSubmit={async (vals /** with the correct type from schema */) => {
+  onSubmit={async (vals) => {
+    /** vals has the type { name: string, email: string, favoriteColor: "Red" | "Blue" } */
     ...
   }}
 >
