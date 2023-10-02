@@ -3,8 +3,10 @@ const config = {
   extends: [
     "plugin:@typescript-eslint/recommended",
     "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "react",
     "prettier",
   ],
+  parser: "@typescript-eslint/parser",
   rules: {
     "@typescript-eslint/restrict-template-expressions": "off",
     "@typescript-eslint/no-unused-vars": [
@@ -24,6 +26,7 @@ const config = {
   parserOptions: {
     ecmaVersion: "latest",
     tsconfigRootDir: __dirname,
+    project: ["./tsconfig.json"],
   },
 };
 
