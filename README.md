@@ -76,7 +76,7 @@ with full type-script support!
 Ozef has minimal dependencies (just Zod and [Jotai](https://github.com/pmndrs/jotai)) and is easy to install. 
 
 ```bash
-npm i zod jotai ozef
+npm i zod@3.21.4 jotai ozef
 ```
 
 ## Usage
