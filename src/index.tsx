@@ -23,7 +23,7 @@ type SpanProps = JSX.IntrinsicElements["span"] & {
 
 type SubmitButtonProps = Omit<ButtonProps, "type"> & {
   type?: "submit";
-  submitting?: boolean;
+  submitting: boolean;
 };
 
 type OzefInputSchema = {

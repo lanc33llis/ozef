@@ -1,7 +1,7 @@
 {
   "name": "ozef",
   "description": "opinionated zod empowered forms",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
   "exports": {
