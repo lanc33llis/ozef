@@ -28,11 +28,11 @@ type SubmitButtonProps = Omit<ButtonProps, "type"> & {
 
 type OzefInputSchema = {
   [k: string]:
-    | z.ZodString
-    | z.ZodNumber
-    | z.ZodBoolean
-    | z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]>
-    | z.ZodEnum<[string, ...string[]]>;
+  | z.ZodString
+  | z.ZodNumber
+  | z.ZodBoolean
+  | z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]>
+  | z.ZodEnum<[string, ...string[]]>;
 };
 
 interface CreateFormArgs<T extends OzefInputSchema, IP, EP, SP> {
@@ -111,10 +111,19 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             return;
           } else {
             setSubmitting(true);
-            void (async () => {
-              await props.onSubmit?.(formData as ParsedFormData);
+            if (props.onSubmit instanceof Promise) {
+              (async () => {
+                if (props.onSubmit) {
+                  await props.onSubmit(formData as ParsedFormData);
+                }
+                setSubmitting(false);
+              })();
+            } else if (props.onSubmit) {
+              props.onSubmit(formData as ParsedFormData);
               setSubmitting(false);
-            })();
+            } else {
+              setSubmitting(false);
+            }
           }
         }}
       />
@@ -127,18 +136,18 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   };
   Form.Field = {} as CapitalizeKeys<{
     [key in keyof T]: React.FC<FieldProps> &
-      // Radio
-      (T[key] extends z.ZodEnum<infer U>
-        ? CapitalizeKeys<{ [subfield in U[number]]: React.FC<FieldProps> }>
-        : {}) &
-      // Select
-      (T[key] extends z.ZodUnion<
-        infer U extends [z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]
-      >
-        ? CapitalizeKeys<{
-            [subfield in U[number]["value"]]: React.FC<FieldProps>;
-          }>
-        : {});
+    // Radio
+    (T[key] extends z.ZodEnum<infer U>
+      ? CapitalizeKeys<{ [subfield in U[number]]: React.FC<FieldProps> }>
+      : {}) &
+    // Select
+    (T[key] extends z.ZodUnion<
+      infer U extends [z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]
+    >
+      ? CapitalizeKeys<{
+        [subfield in U[number]["value"]]: React.FC<FieldProps>;
+      }>
+      : {});
   }>;
   type FormField = typeof Form.Field;
 
@@ -256,9 +265,8 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         const [touched, setTouched] = useAtom(touchedAtom);
 
         const hasError = errors[key] && touched[key];
-        let className = `${props.className ?? ""} ${
-          hasError ? errorClassName ?? "" : ""
-        }`;
+        let className = `${props.className ?? ""} ${hasError ? errorClassName ?? "" : ""
+          }`;
         className = className.trim();
 
         return (
