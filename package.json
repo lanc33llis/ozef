@@ -18,7 +18,8 @@
     "clean": "rm -rf lib/*",
     "build:esm": "rollup --config ./configs/rollup.config.mjs",
     "build:cjs": "tsc -p ./configs/tsconfig.cjs.json",
-    "build": "npm run clean && npm run build:esm && npm run build:cjs"
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "dev": "vite"
   },
   "peerDependencies": {
     "@types/react": "^18.2.0",
@@ -47,6 +48,10 @@
     "rollup": "^3.29.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "tslib": "^2.6.2",
-    "typescript": "^5.0.4"
+    "typescript": "^5.0.4",
+    "vite": "^4.5.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.1.0"
   }
 }
