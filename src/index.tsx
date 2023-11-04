@@ -3,8 +3,11 @@ import { atom, useAtom } from "jotai";
 import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 
 type ButtonProps = JSX.IntrinsicElements["button"];
+interface FormUtils {
+  reset: () => void;
+}
 type FormProps<FD, _> = Omit<JSX.IntrinsicElements["form"], "onSubmit"> & {
-  onSubmit?: (data: FD) => Promise<void> | void;
+  onSubmit?: (data: FD, utils: FormUtils) => Promise<void> | void;
 };
 
 type InputMetaProps = {
@@ -112,8 +115,16 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           } else {
             setSubmitting(true);
             if (props.onSubmit) {
+              const utils = {
+                reset: () => {
+                  setErrors({});
+                  setTouched({});
+                  setSubmitting(false);
+                },
+              };
+
               Promise.resolve(
-                props.onSubmit(formData as ParsedFormData),
+                props.onSubmit(formData as ParsedFormData, utils),
               ).finally(() => setSubmitting(false));
             }
           }
