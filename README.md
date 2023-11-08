@@ -138,7 +138,7 @@ const Input = ({ prefixIcon, hasError, ...props }: InputProps) => {
       <input
         {/* This is the important part. Ozef needs to pass props to the native input component. */}
         {...props}
-        className="..."}
+        className="..."
       />
     </div>
   );
