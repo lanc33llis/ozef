@@ -3,11 +3,12 @@ import { atom, useAtom } from "jotai";
 import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 
 type ButtonProps = JSX.IntrinsicElements["button"];
-interface FormUtils {
+interface FormUtils<FD> {
   reset: () => void;
+  setError: (key: keyof FD, error: string) => void;
 }
-type FormProps<FD, _> = Omit<JSX.IntrinsicElements["form"], "onSubmit"> & {
-  onSubmit?: (data: FD, utils: FormUtils) => Promise<void> | void;
+type FormProps<FD> = Omit<JSX.IntrinsicElements["form"], "onSubmit"> & {
+  onSubmit?: (data: FD, utils: FormUtils<FD>) => Promise<void> | void;
 };
 
 type InputMetaProps = {
@@ -80,7 +81,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     {},
   ) as { [key in keyof T]: true };
 
-  const Form = (props: FormProps<ParsedFormData, FieldProps>) => {
+  const Form = (props: FormProps<ParsedFormData>) => {
     const [formData] = useAtom(formAtom);
     const [, setErrors] = useAtom(errorsAtom);
     const [, setTouched] = useAtom(touchedAtom);
@@ -121,7 +122,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
                   setTouched({});
                   setSubmitting(false);
                 },
-              };
+                setError: (key, err) => {
+                  setErrors((prev) => ({ ...prev, [key]: err }));
+                }
+              } as FormUtils<ParsedFormData>;
 
               Promise.resolve(
                 props.onSubmit(formData as ParsedFormData, utils),
