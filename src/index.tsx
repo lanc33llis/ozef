@@ -5,7 +5,7 @@ import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 type ButtonProps = JSX.IntrinsicElements["button"];
 interface FormUtils<FD> {
   reset: () => void;
-  setError: (key: keyof FD, error: string) => void;
+  setError: (key: keyof FD | "submission", error: string) => void;
 }
 type FormProps<FD> = Omit<JSX.IntrinsicElements["form"], "onSubmit"> & {
   onSubmit?: (data: FD, utils: FormUtils<FD>) => Promise<void> | void;
@@ -63,9 +63,11 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     [key in keyof T]: T[key]["_type"];
   };
   type RawFormData = Partial<ParsedFormData>;
-  type FormErrors = Partial<{
-    [key in keyof T]: ZodError;
-  }>;
+  type FormErrors = Partial<
+    {
+      [key in keyof T]: ZodError;
+    } & { submission: string }
+  >;
   type FieldProps = InputProps & IP;
   type ErrorProps = SpanProps & EP;
   type SubmitProps = SubmitButtonProps & SP;
@@ -97,13 +99,13 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           const _errors = {} as FormErrors;
 
           Object.entries(schema.shape).map(
-            ([key, scheme]: [keyof T, ZodTypeAny]) => {
+            ([key, scheme]: [keyof FormErrors, ZodTypeAny]) => {
               const value = formData[key];
               const result = scheme.safeParse(value);
               if (result.success) {
                 _errors[key] = undefined;
               } else {
-                _errors[key] = result.error;
+                _errors[key] = result.error as any;
               }
             },
           );
@@ -124,7 +126,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
                 },
                 setError: (key, err) => {
                   setErrors((prev) => ({ ...prev, [key]: err }));
-                }
+                },
               } as FormUtils<ParsedFormData>;
 
               Promise.resolve(
@@ -308,7 +310,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     Form.Field[capitalizedKey as keyof FormField] = func;
 
     (
-      Form.Field[capitalizedKey as CapitalizedKey] as React.FC
+      Form.Field[capitalizedKey as CapitalizedKey] as unknown as React.FC
     ).displayName = `Form.Field.${capitalizedKey}`;
 
     Form.Error[capitalizedKey as keyof FormError] = ((props: ErrorProps) => {
@@ -336,13 +338,12 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     const [errors] = useAtom(errorsAtom);
     const [touched] = useAtom(touchedAtom);
     const submitted = useAtom(submittedAtom);
-
     if (
       submitted &&
       Object.values(errors).some((error) => error !== undefined) &&
       JSON.stringify(touched) === JSON.stringify(ALL_TOUCHED)
     ) {
-      return <Error {...props} />;
+      return <Error {...props} error={errors.submission} />;
     }
     return null;
   };

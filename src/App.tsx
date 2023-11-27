@@ -20,14 +20,16 @@ const App = () => {
         </button>
       );
     },
+    Error: ({ error }) => <p>{error}</p>,
   });
 
   return (
     <main>
       <TestForm
-        onSubmit={() => {
+        onSubmit={({}, utils) => {
           // await Timeout(2000);
           console.log("Submitted");
+          utils.setError("submission", "Something went wrong");
         }}
       >
         <TestForm.Field.Something />
