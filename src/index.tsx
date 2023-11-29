@@ -28,6 +28,7 @@ type SpanProps = JSX.IntrinsicElements["span"] & {
 type SubmitButtonProps = Omit<ButtonProps, "type"> & {
   type?: "submit";
   submitting?: boolean;
+  disabled?: boolean;
 };
 
 type OzefInputSchema = {
@@ -158,8 +159,20 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           }>
         : {}) & {
         // Misc
+        /**
+         * @description Sets the value of the field. Can only be used after the form has mounted.
+         * @returns {void}
+         */
         setValue: (value: T[key]["_type"]) => void;
+        /**
+         * @description Gets the value of the field. Can only be used after the form has mounted.
+         * @returns {T[key]["_type"]}
+         */
         getValue: () => T[key]["_type"];
+        /**
+         * @description React hook to get the value of the field.
+         * @returns {T[key]["_type"]}
+         */
         useValue: () => T[key]["_type"];
       };
   }>;
@@ -342,14 +355,19 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     ]!.displayName = `Form.Error.${capitalizedKey}`;
   });
 
+  Form.reset = () => void 0;
+
   formAtom.onMount = (set) => {
+    Form.reset = () => {
+      set({});
+    };
+
     Object.entries(schema.shape).map(([key]) => {
       const capitalizedKey = key[0]!.toUpperCase() + key.slice(1);
       (Form.Field[capitalizedKey as keyof FormField] as any).setValue = (
         value: T[typeof key]["_type"],
       ) => {
         set((prev) => {
-          console.log(prev);
           return { ...prev, [key]: value };
         });
       };
