@@ -156,7 +156,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         ? CapitalizeKeys<{
             [subfield in U[number]["value"]]: React.FC<FieldProps>;
           }>
-        : {});
+        : {}) & {
+        // Setters
+        setValue: (value: T[key]["_type"]) => void;
+      };
   }>;
   type FormField = typeof Form.Field;
 
@@ -332,6 +335,17 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       capitalizedKey as CapitalizedKey
     ]!.displayName = `Form.Error.${capitalizedKey}`;
   });
+
+  formAtom.onMount = (set) => {
+    Object.entries(schema.shape).map(([key]) => {
+      const capitalizedKey = key[0]!.toUpperCase() + key.slice(1);
+      (Form.Field[capitalizedKey as keyof FormField] as any).setValue = (
+        value: T[typeof key]["_type"],
+      ) => {
+        set((prev) => ({ ...prev, [key]: value }));
+      };
+    });
+  };
 
   // eslint-disable-next-line react/display-name
   Form.Error.Submission = (props) => {

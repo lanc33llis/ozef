@@ -11,6 +11,7 @@ const App = () => {
   const TestForm = ozef({
     schema: z.object({
       something: z.string().min(0).max(10),
+      else: z.string().min(0).max(10),
     }),
     Submit: (props) => {
       console.log(props.submitting);
@@ -29,13 +30,20 @@ const App = () => {
         onSubmit={({}, utils) => {
           // await Timeout(2000);
           console.log("Submitted");
-          utils.setError("submission", "Something went wrong");
+          // utils.setError("submission", "Something went wrong");
         }}
       >
         <TestForm.Field.Something />
+        <TestForm.Field.Else />
         <TestForm.Error.Something />
         <TestForm.Event.Submit />
         <TestForm.Error.Submission />
+        <button onClick={() => TestForm.Field.Something.setValue("123")}>
+          hello 1
+        </button>
+        <button onClick={() => TestForm.Field.Else.setValue("1223")}>
+          hello 2
+        </button>
       </TestForm>
     </main>
   );
