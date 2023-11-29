@@ -85,7 +85,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   ) as { [key in keyof T]: true };
 
   const Form = (props: FormProps<ParsedFormData>) => {
-    const [formData] = useAtom(formAtom);
+    const [formData, setFormData] = useAtom(formAtom);
     const [, setErrors] = useAtom(errorsAtom);
     const [, setTouched] = useAtom(touchedAtom);
     const [, setSubmitting] = useAtom(submittingAtom);
@@ -121,6 +121,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             if (props.onSubmit) {
               const utils = {
                 reset: () => {
+                  setFormData({});
                   setErrors({});
                   setTouched({});
                   setSubmitting(false);
@@ -355,13 +356,21 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     ]!.displayName = `Form.Error.${capitalizedKey}`;
   });
 
-  Form.reset = () => void 0;
+  Form.useReset = () => {
+    const [, setFormData] = useAtom(formAtom);
+    const [, setErrors] = useAtom(errorsAtom);
+    const [, setTouched] = useAtom(touchedAtom);
+    const [, setSubmitting] = useAtom(submittingAtom);
+
+    return () => {
+      setFormData({});
+      setErrors({});
+      setTouched({});
+      setSubmitting(false);
+    };
+  };
 
   formAtom.onMount = (set) => {
-    Form.reset = () => {
-      set({});
-    };
-
     Object.entries(schema.shape).map(([key]) => {
       const capitalizedKey = key[0]!.toUpperCase() + key.slice(1);
       (Form.Field[capitalizedKey as keyof FormField] as any).setValue = (
