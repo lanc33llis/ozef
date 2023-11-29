@@ -66,7 +66,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   type RawFormData = Partial<ParsedFormData>;
   type FormErrors = Partial<
     {
-      [key in keyof T]: ZodError;
+      [key in keyof T]: ZodError | string;
     } & { submission: string }
   >;
   type FieldProps = InputProps & IP;
@@ -341,12 +341,18 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       const [touched] = useAtom(touchedAtom);
 
       if (errors[key] && touched[key]) {
-        return (
-          <Error
-            {...props}
-            error={errors[key]?.errors.flatMap((e) => e.message).join(", ")}
-          />
-        );
+        if (typeof errors[key] === "string" || errors[key] instanceof String) {
+          return <Error {...props} error={errors[key] as string} />;
+        } else {
+          return (
+            <Error
+              {...props}
+              error={(errors[key] as ZodError)?.errors
+                .flatMap((e) => e.message)
+                .join(", ")}
+            />
+          );
+        }
       }
 
       return null;
