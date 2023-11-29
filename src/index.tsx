@@ -157,8 +157,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             [subfield in U[number]["value"]]: React.FC<FieldProps>;
           }>
         : {}) & {
-        // Setters
+        // Misc
         setValue: (value: T[key]["_type"]) => void;
+        getValue: () => T[key]["_type"];
+        useValue: () => T[key]["_type"];
       };
   }>;
   type FormField = typeof Form.Field;
@@ -311,6 +313,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     }
 
     Form.Field[capitalizedKey as keyof FormField] = func;
+    (Form.Field[capitalizedKey as keyof FormField] as any).useValue = () => {
+      const [formData] = useAtom(formAtom);
+      return formData[key];
+    };
 
     (
       Form.Field[capitalizedKey as CapitalizedKey] as unknown as React.FC
@@ -342,7 +348,19 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       (Form.Field[capitalizedKey as keyof FormField] as any).setValue = (
         value: T[typeof key]["_type"],
       ) => {
-        set((prev) => ({ ...prev, [key]: value }));
+        set((prev) => {
+          console.log(prev);
+          return { ...prev, [key]: value };
+        });
+      };
+
+      (Form.Field[capitalizedKey as keyof FormField] as any).getValue = () => {
+        let val = undefined;
+        set((prev) => {
+          val = prev[key];
+          return prev;
+        });
+        return val;
       };
     });
   };
