@@ -1,9 +1,13 @@
 {
   "name": "ozef",
   "description": "opinionated zod empowered forms",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lanc33llis/ozef"
+  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
