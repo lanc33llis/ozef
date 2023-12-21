@@ -31,13 +31,15 @@ type SubmitButtonProps = Omit<ButtonProps, "type"> & {
   disabled?: boolean;
 };
 
+// Actually supported types at the moment
+// | z.ZodString
+// | z.ZodNumber
+// | z.ZodBoolean
+// | z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]>
+// | z.ZodEnum<[string, ...string[]]>;
+
 type OzefInputSchema = {
-  [k: string]:
-    | z.ZodString
-    | z.ZodNumber
-    | z.ZodBoolean
-    | z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]>
-    | z.ZodEnum<[string, ...string[]]>;
+  [k: string]: z.ZodTypeAny;
 };
 
 interface CreateFormArgs<T extends OzefInputSchema, IP, EP, SP> {
@@ -213,7 +215,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         <div>{children}</div>
       );
 
-      scheme.options.map((option) => {
+      scheme.options.map((option: string) => {
         const capitalizedOption = option[0]!.toUpperCase() + option.slice(1);
         func[capitalizedOption] = (props: FieldProps) => {
           const [, setFormData] = useAtom(formAtom);
@@ -278,7 +280,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         );
       };
 
-      scheme.options.map((literal) => {
+      scheme.options.map((literal: z.ZodLiteral<string>) => {
         const { value: option } = literal;
         const capitalizedOption = option[0]!.toUpperCase() + option.slice(1);
 

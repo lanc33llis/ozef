@@ -7,11 +7,12 @@ const Timeout = async (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
+z.object({});
+
 const TestForm = ozef({
   schema: z.object({
     something: z.string().min(0).max(10),
     else: z.string().min(0).max(10),
-    test: z.union([z.literal("123"), z.literal("1223")]),
   }),
   Submit: (props) => {
     return (
@@ -29,8 +30,9 @@ const App = () => {
   return (
     <main>
       <TestForm
-        onSubmit={({}, utils) => {
+        onSubmit={(vals, utils) => {
           // await Timeout(2000);
+          console.log(vals);
           console.log("Submitted");
           // utils.setError("submission", "Something went wrong");
         }}
