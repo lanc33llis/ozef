@@ -51,6 +51,7 @@ interface CreateFormArgs<T extends OzefInputSchema, IP, EP, SP> {
   Option?: React.FC<OptionProps>;
   Error?: React.FC<SpanProps & EP>;
   Submit?: React.FC<SubmitButtonProps & SP>;
+  defaults?: { [key in keyof T]: T[key]["_type"] };
 }
 
 function ozef<T extends OzefInputSchema, IP, EP, SP>({
@@ -61,6 +62,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   Select = (props) => <select {...props} />,
   Option = (props) => <option {...props} />,
   Submit = (props) => <button {...props} type="submit" />,
+  defaults,
 }: CreateFormArgs<T, IP, EP, SP>) {
   type ParsedFormData = {
     [key in keyof T]: T[key]["_type"];
@@ -75,7 +77,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   type ErrorProps = SpanProps & EP;
   type SubmitProps = SubmitButtonProps & SP;
 
-  const formAtom = atom<RawFormData>({});
+  const formAtom = atom<RawFormData>(defaults ?? {});
   const errorsAtom = atom<FormErrors>({});
   const touchedAtom = atom<Partial<{ [key in keyof T]: boolean }>>({});
   const submittedAtom = atom<boolean>(false);
@@ -291,7 +293,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     } else if (scheme instanceof z.ZodBoolean) {
       func = ({ errorClassName, ...props }: FieldProps) => {
         const [formData, setFormData] = useAtom(formAtom);
-        const [errors, setErrors] = useAtom(errorsAtom);
+        const [errors] = useAtom(errorsAtom);
         const [touched, setTouched] = useAtom(touchedAtom);
 
         const hasError = errors[key] && touched[key];
@@ -306,19 +308,14 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             {...(className && {
               className,
             })}
+            checked={formData[key] ?? false}
             type="checkbox"
             name={key}
             value={formData[key] ?? ""}
-            onChange={(e) => {
-              const val = e.target.value;
-              const res = scheme.safeParse(val);
+            onChange={() => {
+              const val = !formData[key] ?? false;
 
               setFormData((prev) => ({ ...prev, [key]: val }));
-              if (res.success) {
-                setErrors((prev) => ({ ...prev, [key]: undefined }));
-              } else {
-                setErrors((prev) => ({ ...prev, [key]: res.error }));
-              }
             }}
             onBlur={() => {
               setTouched((prev) => ({ ...prev, [key]: true }));
