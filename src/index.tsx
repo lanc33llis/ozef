@@ -288,6 +288,45 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           return <Option value={option}>{option}</Option>;
         };
       });
+    } else if (scheme instanceof z.ZodBoolean) {
+      func = ({ errorClassName, ...props }: FieldProps) => {
+        const [formData, setFormData] = useAtom(formAtom);
+        const [errors, setErrors] = useAtom(errorsAtom);
+        const [touched, setTouched] = useAtom(touchedAtom);
+
+        const hasError = errors[key] && touched[key];
+        let className = `${props.className ?? ""} ${
+          hasError ? errorClassName ?? "" : ""
+        }`;
+        className = className.trim();
+
+        return (
+          <Input
+            {...(props as FieldProps)}
+            {...(className && {
+              className,
+            })}
+            type="checkbox"
+            name={key}
+            value={formData[key] ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              const res = scheme.safeParse(val);
+
+              setFormData((prev) => ({ ...prev, [key]: val }));
+              if (res.success) {
+                setErrors((prev) => ({ ...prev, [key]: undefined }));
+              } else {
+                setErrors((prev) => ({ ...prev, [key]: res.error }));
+              }
+            }}
+            onBlur={() => {
+              setTouched((prev) => ({ ...prev, [key]: true }));
+            }}
+            hasError={hasError}
+          />
+        );
+      };
     } else {
       func = ({ errorClassName, ...props }: FieldProps) => {
         const [formData, setFormData] = useAtom(formAtom);
