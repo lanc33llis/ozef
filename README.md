@@ -2,11 +2,10 @@
 
 ## Introduction
 
-Ozef is an opinionated library that aims to guarantee type-safe, declarative forms with minimal boilerplate. It is built on top of [Zod](
-  https://github.com/colinhacks/zod
-) which provides a powerful type system for validating data.
+Ozef is an opinionated library that aims to guarantee type-safe, declarative forms with minimal boilerplate. It is built on top of [Zod](https://github.com/colinhacks/zod) which provides a powerful type system for validating data.
 
 Features Ozef supports:
+
 - Guaranteed type-safety in `onSubmit`
 - async `onSubmit`
 - Declarative forms
@@ -16,6 +15,7 @@ Features Ozef supports:
 Ozef is not a component library. It does not provide any pre-built components. Instead, plug in existing components to build forms.
 
 Ozef lets you build forms like:
+
 ```tsx
 import Input from "./CustomInput";
 
@@ -69,11 +69,12 @@ const NewFlowForm = ozef({
   <NewFlowForm.Error.Submission error="Please fill out the form" />
 </NewFlowForm>
 ```
+
 with full type-script support!
 
 ## Installation
 
-Ozef has minimal dependencies (just Zod and [Jotai](https://github.com/pmndrs/jotai)) and is easy to install. 
+Ozef has minimal dependencies (just Zod and [Jotai](https://github.com/pmndrs/jotai)) and is easy to install.
 
 ```bash
 npm i zod@3.21.4 jotai ozef
@@ -82,6 +83,7 @@ npm i zod@3.21.4 jotai ozef
 ## Usage
 
 ### Basic usage
+
 ```tsx
 import ozef from "ozef";
 
@@ -115,7 +117,8 @@ const SomeComponent = () => {
 ```
 
 ### Ozef Input Components
-Components need to modified before being able to be used with Ozef. This is because Ozef needs to be able to pass certain props to the components. 
+
+Components need to modified before being able to be used with Ozef. This is because Ozef needs to be able to pass certain props to the components.
 
 ```tsx
 import { type OzefInputProps } from "ozef";
@@ -143,3 +146,123 @@ const Input = ({ prefixIcon, hasError, ...props }: InputProps) => {
     </div>
   );
 };
+```
+
+### Defaults
+
+```tsx
+import ozef from "ozef";
+
+const Form = ozef({
+  schema: z.object({
+    name: z.string().min(3),
+    email: z.string().email(),
+  }),
+  defaults: {
+    name: "John Doe",
+    email: "john-doe@gmail.com"
+  }
+});
+
+const SomeComponent = () => {
+  return (
+    <Form
+      onSubmit={async (vals) => {
+        // vals is guaranteed to be of type { name: string, email: string }
+        ...
+      }}
+    >
+      // Use `Field` components to render inputs for the form
+      <Form.Field.Name />
+      <Form.Field.Email />
+
+      // Use `Error` components to render error labels
+      <Form.Error.Name />
+
+      // Use `Event` components to render special user events components
+      <Form.Event.Submit />
+    </Form>
+  );
+};
+```
+
+### Variable defaults
+
+If you're passing down a variable as defaults, you'll need to use `useMemo` to prevent the form from re-rendering every time the parent component re-renders.
+
+```tsx
+import ozef from "ozef";
+import { useMemo } from "react";
+
+const SomeComponent = ({defaults}: Props) => {
+  const Form = useMemo(() => ozef({
+    schema: z.object({
+      name: z.string().min(3),
+      email: z.string().email(),
+    }),
+    defaults
+  }), [defaults])
+
+  return (
+    <Form
+      onSubmit={async (vals) => {
+        // vals is guaranteed to be of type { name: string, email: string }
+        ...
+      }}
+    >
+      // Use `Field` components to render inputs for the form
+      <Form.Field.Name />
+      <Form.Field.Email />
+
+      // Use `Error` components to render error labels
+      <Form.Error.Name />
+
+      // Use `Event` components to render special user events components
+      <Form.Event.Submit />
+    </Form>
+  );
+};
+```
+
+### shadcn/Radix Select example
+
+```tsx
+import ozef from "ozef";
+
+const UpdateRewriteSettingsForm = ozef({
+  schema: z.object({
+    terseness: z.enum(["short", "medium", "long"]),
+  }),
+});
+
+const ShadcnExample = () => {
+  // getter hook
+  const terseness = UpdateRewriteSettingsForm.Field.Terseness.useValue();
+
+  return (
+    <UpdateRewriteSettingsForm
+      onSubmit={() => {
+        // handler
+      }}
+    >
+      <Select
+        value={terseness}
+        // setter function
+        onValueChange={UpdateRewriteSettingsForm.Field.Terseness.setValue}
+      >
+        <div className="space-y-1">
+          <Label>Terseness</Label>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <UpdateRewriteSettingsForm.Field.Terseness.Short />
+            <UpdateRewriteSettingsForm.Field.Terseness.Medium />
+            <UpdateRewriteSettingsForm.Field.Terseness.Long />
+          </SelectContent>
+        </div>
+      </Select>
+    </UpdateRewriteSettingsForm>
+  );
+};
+```
