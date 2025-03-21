@@ -23,5 +23,5 @@
     "outDir": "./lib",
     "noUncheckedIndexedAccess": true
   },
-  "include": ["index.ts"]
+  "include": ["index.ts", "test/**/*"]
 }

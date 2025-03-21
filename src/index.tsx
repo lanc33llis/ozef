@@ -42,16 +42,17 @@ type OzefInputSchema = {
   [k: string]: z.ZodTypeAny;
 };
 
-interface CreateFormArgs<T extends OzefInputSchema, IP, EP, SP> {
+interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
   schema: ZodObject<T>;
   Input?: React.FC<InputProps & IP>;
   InputMetaProps?: InputMetaProps;
   InputRadio?: React.FC<InputProps & IP>;
   Select?: React.FC<SelectProps>;
   Option?: React.FC<OptionProps>;
-  Error?: React.FC<SpanProps & EP>;
+  Error?: React.FC<SpanProps>;
   Submit?: React.FC<SubmitButtonProps & SP>;
   defaults?: { [key in keyof T]: T[key]["_type"] };
+  ariaLabel?: string;
 }
 
 function ozef<T extends OzefInputSchema, IP, EP, SP>({
@@ -62,8 +63,9 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   Select = (props) => <select {...props} />,
   Option = (props) => <option {...props} />,
   Submit = (props) => <button {...props} type="submit" />,
+  ariaLabel,
   defaults,
-}: CreateFormArgs<T, IP, EP, SP>) {
+}: CreateFormArgs<T, IP, SP>) {
   type ParsedFormData = {
     [key in keyof T]: T[key]["_type"];
   };
@@ -97,6 +99,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
 
     return (
       <form
+        aria-label={ariaLabel}
         {...props}
         onSubmit={(e) => {
           e.preventDefault();
@@ -231,6 +234,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
               type="radio"
               name={key}
               value={option}
+              aria-required={scheme.isOptional() ? false : true}
               onChange={(e) => {
                 const val = e.target.value;
                 const res = scheme.safeParse(val);
@@ -265,6 +269,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           <Select
             id={id}
             name={key}
+            aria-required={scheme.isOptional() ? false : true}
             onChange={(e) => {
               const val = e.target.value;
               const res = scheme.safeParse(val);
@@ -321,6 +326,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
               setTouched((prev) => ({ ...prev, [key]: true }));
             }}
             hasError={hasError}
+            aria-required={scheme.isOptional() ? false : true}
           />
         );
       };
@@ -358,6 +364,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             onBlur={() => {
               setTouched((prev) => ({ ...prev, [key]: true }));
             }}
+            aria-required={scheme.isOptional() ? false : true}
             hasError={hasError}
           />
         );
