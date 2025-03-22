@@ -21,7 +21,7 @@ export type OzefInputProps = InputMetaProps;
 type InputProps = JSX.IntrinsicElements["input"] & InputMetaProps;
 type SelectProps = JSX.IntrinsicElements["select"] & InputMetaProps;
 type OptionProps = JSX.IntrinsicElements["option"];
-type SpanProps = JSX.IntrinsicElements["span"] & {
+type ErrorComponentProps = JSX.IntrinsicElements["span"] & {
   error?: string;
 };
 
@@ -49,7 +49,7 @@ interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
   InputRadio?: React.FC<InputProps & IP>;
   Select?: React.FC<SelectProps>;
   Option?: React.FC<OptionProps>;
-  Error?: React.FC<SpanProps>;
+  Error?: React.FC<ErrorComponentProps>;
   Submit?: React.FC<SubmitButtonProps & SP>;
   defaults?: { [key in keyof T]: T[key]["_type"] };
   ariaLabel?: string;
@@ -76,7 +76,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     } & { submission: string }
   >;
   type FieldProps = InputProps & IP;
-  type ErrorProps = SpanProps & EP;
+  type ErrorProps = ErrorComponentProps & EP;
   type SubmitProps = SubmitButtonProps & SP;
 
   const formAtom = atom<RawFormData>(defaults ?? {});
@@ -200,7 +200,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         <Submit
           {...(props as SubmitProps)}
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || props.disabled}
           submitting={isSubmitting}
         />
       );
