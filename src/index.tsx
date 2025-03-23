@@ -1,8 +1,7 @@
 import React, { JSX, useEffect, useId } from "react";
-import { atom, useAtom } from "jotai";
+import { atom, useAtom, useAtomValue } from "jotai";
 import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 
-type ButtonProps = JSX.IntrinsicElements["button"];
 interface FormUtils<FD> {
   reset: () => void;
   setError: (key: keyof FD | "submission", error: string) => void;
@@ -18,14 +17,13 @@ type InputMetaProps = {
 };
 export type OzefInputProps = InputMetaProps;
 
-type InputProps = JSX.IntrinsicElements["input"] & InputMetaProps;
-type SelectProps = JSX.IntrinsicElements["select"] & InputMetaProps;
-type OptionProps = JSX.IntrinsicElements["option"];
-type ErrorComponentProps = JSX.IntrinsicElements["span"] & {
+type FormInputProps = JSX.IntrinsicElements["input"] & InputMetaProps;
+type FormSelectProps = JSX.IntrinsicElements["select"] & InputMetaProps;
+type FormOptionProps = JSX.IntrinsicElements["option"];
+type FormErrorComponentProps = {
   error?: string;
 };
-
-type SubmitButtonProps = Omit<ButtonProps, "type"> & {
+type FormSubmitProps = {
   type?: "submit";
   submitting?: boolean;
   disabled?: boolean;
@@ -44,13 +42,13 @@ type OzefInputSchema = {
 
 interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
   schema: ZodObject<T>;
-  Input?: React.FC<InputProps & IP>;
+  Input?: React.FC<FormInputProps & IP>;
   InputMetaProps?: InputMetaProps;
-  InputRadio?: React.FC<InputProps & IP>;
-  Select?: React.FC<SelectProps>;
-  Option?: React.FC<OptionProps>;
-  Error?: React.FC<ErrorComponentProps>;
-  Submit?: React.FC<SubmitButtonProps & SP>;
+  InputRadio?: React.FC<FormInputProps & IP>;
+  Select?: React.FC<FormSelectProps>;
+  Option?: React.FC<FormOptionProps>;
+  Error?: React.FC<FormErrorComponentProps>;
+  Submit?: React.FC<FormSubmitProps & SP>;
   defaults?: { [key in keyof T]: T[key]["_type"] };
   ariaLabel?: string;
 }
@@ -58,7 +56,7 @@ interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
 function ozef<T extends OzefInputSchema, IP, EP, SP>({
   schema,
   Input = (props) => <input {...props} />,
-  Error = (props) => <span {...props} />,
+  Error = ({ error }) => <span>{error}</span>,
   InputRadio = (props) => <input {...props} type="radio" />,
   Select = (props) => <select {...props} />,
   Option = (props) => <option {...props} />,
@@ -75,9 +73,9 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       [key in keyof T]: ZodError | string;
     } & { submission: string }
   >;
-  type FieldProps = InputProps & IP;
-  type ErrorProps = ErrorComponentProps & EP;
-  type SubmitProps = SubmitButtonProps & SP;
+  type FieldProps = FormInputProps & IP;
+  type ErrorProps = FormErrorComponentProps & EP;
+  type SubmitProps = FormSubmitProps & SP;
 
   const formAtom = atom<RawFormData>(defaults ?? {});
   const errorsAtom = atom<FormErrors>({});
@@ -94,13 +92,14 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     const [formData, setFormData] = useAtom(formAtom);
     const [, setErrors] = useAtom(errorsAtom);
     const [, setTouched] = useAtom(touchedAtom);
-    const [, setSubmitting] = useAtom(submittingAtom);
+    const [submitting, setSubmitting] = useAtom(submittingAtom);
     const keys = Object.keys(schema.shape) as (keyof T & string)[];
 
     return (
       <form
-        aria-label={ariaLabel}
         {...props}
+        aria-busy={submitting}
+        aria-label={ariaLabel}
         onSubmit={(e) => {
           e.preventDefault();
 
@@ -186,6 +185,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   }>;
   type FormField = typeof Form.Field;
 
+  const defaultAria = (props: any) => ({
+    "aria-disabled": props.disabled ?? false,
+  });
+
   type ErrorKeys = keyof T | "Submission";
   Form.Error = {} as CapitalizeKeys<{
     [key in ErrorKeys]: React.FC<ErrorProps>;
@@ -202,6 +205,8 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
           type="submit"
           disabled={isSubmitting || props.disabled}
           submitting={isSubmitting}
+          aria-disabled={props.disabled ?? false}
+          aria-busy={isSubmitting}
         />
       );
     },
@@ -216,24 +221,29 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     let func: any = undefined;
 
     if (scheme instanceof z.ZodEnum) {
-      func = ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
+      func = (props: React.ComponentProps<"div">) => (
+        <div {...props} role="radiogroup" />
       );
 
       scheme.options.map((option: string) => {
         const capitalizedOption = option[0]!.toUpperCase() + option.slice(1);
         func[capitalizedOption] = (props: FieldProps) => {
-          const [, setFormData] = useAtom(formAtom);
+          const [fd, setFormData] = useAtom(formAtom);
           const [, setErrors] = useAtom(errorsAtom);
           const [, setTouched] = useAtom(touchedAtom);
 
           return (
             <InputRadio
               {...props}
+              {...defaultAria(props)}
               radioValue={option}
               type="radio"
+              role="radio"
+              checked={fd[key] === option}
+              aria-checked={fd[key] === option}
               name={key}
               value={option}
+              required={scheme.isOptional() ? false : true}
               aria-required={scheme.isOptional() ? false : true}
               onChange={(e) => {
                 const val = e.target.value;
@@ -254,7 +264,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
         };
       });
     } else if (scheme instanceof z.ZodUnion) {
-      func = ({ children }: { children: React.ReactNode }) => {
+      func = (props: React.ComponentProps<"select">) => {
         const [, setFormData] = useAtom(formAtom);
         const [, setErrors] = useAtom(errorsAtom);
         const id = useId();
@@ -267,9 +277,12 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
 
         return (
           <Select
+            {...props}
+            {...defaultAria(props)}
             id={id}
             name={key}
             aria-required={scheme.isOptional() ? false : true}
+            role="listbox"
             onChange={(e) => {
               const val = e.target.value;
               const res = scheme.safeParse(val);
@@ -281,18 +294,26 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
                 setErrors((prev) => ({ ...prev, [key]: res.error }));
               }
             }}
-          >
-            {children}
-          </Select>
+          />
         );
       };
 
       scheme.options.map((literal: z.ZodLiteral<string>) => {
         const { value: option } = literal;
         const capitalizedOption = option[0]!.toUpperCase() + option.slice(1);
+        const fd = useAtomValue(formAtom);
 
-        func[capitalizedOption] = (_: FieldProps) => {
-          return <Option value={option}>{option}</Option>;
+        func[capitalizedOption] = (props: FieldProps) => {
+          return (
+            <Option
+              {...defaultAria(props)}
+              aria-selected={fd[key] ?? false}
+              role="option"
+              value={option}
+            >
+              {option}
+            </Option>
+          );
         };
       });
     } else if (scheme instanceof z.ZodBoolean) {
@@ -313,12 +334,15 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             {...(className && {
               className,
             })}
+            {...defaultAria(props)}
+            aria-checked={formData[key] ?? false}
             checked={formData[key] ?? false}
             type="checkbox"
+            role="checkbox"
             name={key}
             value={formData[key] ?? ""}
             onChange={() => {
-              const val = !formData[key] ?? false;
+              const val = !formData[key];
 
               setFormData((prev) => ({ ...prev, [key]: val }));
             }}
@@ -348,6 +372,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             {...(className && {
               className,
             })}
+            {...defaultAria(props)}
             name={key}
             value={formData[key] ?? ""}
             onChange={(e) => {
