@@ -11,7 +11,7 @@ type FormProps<FD> = Omit<JSX.IntrinsicElements["form"], "onSubmit"> & {
 };
 
 type InputMetaProps = {
-  hasError?: boolean;
+  errorful?: boolean;
   errorClassName?: string;
   radioValue?: string;
 };
@@ -349,7 +349,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             onBlur={() => {
               setTouched((prev) => ({ ...prev, [key]: true }));
             }}
-            hasError={hasError}
+            errorful={hasError}
             aria-required={scheme.isOptional() ? false : true}
           />
         );
@@ -390,7 +390,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
               setTouched((prev) => ({ ...prev, [key]: true }));
             }}
             aria-required={scheme.isOptional() ? false : true}
-            hasError={hasError}
+            errorful={hasError}
           />
         );
       };
