@@ -1,7 +1,7 @@
 {
   "name": "ozef",
   "description": "opinionated zod empowered forms",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
   "packageManager": "bun@1.2.2",
@@ -28,10 +28,10 @@
     "test": "jest"
   },
   "peerDependencies": {
-    "@types/react": "^19.0.0",
+    "@types/react": ">=17.0.0",
     "jotai": "^2.4.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.0.0",
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0",
     "zod": "^3.23.4"
   },
   "peerDependenciesMeta": {
@@ -51,6 +51,8 @@
     "@types/node": "^18.16.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
     "@vitejs/plugin-react": "^4.1.0",
@@ -63,9 +65,7 @@
     "ts-node": "^10.9.2",
     "tslib": "^2.6.2",
     "typescript": "^5.0.4",
-    "vite": "^4.5.0"
-  },
-  "dependencies": {
+    "vite": "^4.5.0",
     "@babel/core": "^7.26.9",
     "@babel/preset-env": "^7.26.9",
     "@babel/preset-typescript": "^7.26.0",
