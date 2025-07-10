@@ -448,8 +448,16 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
   ) => {
     const formData = useAtomValue(formAtom);
     const formErrors = useAtomValue(errorsAtom);
+    const formTouched = useAtomValue(touchedAtom);
 
-    useEffect(() => cb(formData, formErrors), [formData, formErrors]);
+    useEffect(
+      () =>
+        Object.values(formTouched).every((v) => v === false) ||
+        Object.values(formTouched).length === 0
+          ? void 0
+          : cb(formData, formErrors),
+      [formData, formErrors],
+    );
   };
 
   Form.useReset = () => {

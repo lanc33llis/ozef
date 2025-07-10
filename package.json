@@ -1,7 +1,7 @@
 {
   "name": "ozef",
   "description": "opinionated zod empowered forms",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
   "packageManager": "bun@1.2.2",
