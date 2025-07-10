@@ -450,14 +450,17 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     const formErrors = useAtomValue(errorsAtom);
     const formTouched = useAtomValue(touchedAtom);
 
-    useEffect(
-      () =>
-        Object.values(formTouched).every((v) => v === false) ||
-        Object.values(formTouched).length === 0
-          ? void 0
-          : cb(formData, formErrors),
-      [formData, formErrors],
-    );
+    useEffect(() => {
+      const values = Object.values(formTouched);
+
+      if (
+        values.length !== 1 &&
+        (values.length === 0 || Object.values(values).every((v) => v === false))
+      )
+        return;
+
+      cb(formData, formErrors);
+    }, [formData, formErrors]);
   };
 
   Form.useReset = () => {
