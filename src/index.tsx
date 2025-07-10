@@ -1,4 +1,4 @@
-import React, { JSX, useEffect, useId } from "react";
+import React, { EffectCallback, JSX, useEffect, useId } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 
@@ -22,11 +22,13 @@ type FormSelectProps = JSX.IntrinsicElements["select"] & InputMetaProps;
 type FormOptionProps = JSX.IntrinsicElements["option"];
 type FormErrorComponentProps = {
   error?: string;
+  className?: string;
 };
 type FormSubmitProps = {
   type?: "submit";
   submitting?: boolean;
   disabled?: boolean;
+  className?: string;
 };
 
 // Actually supported types at the moment
@@ -56,7 +58,7 @@ interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
 function ozef<T extends OzefInputSchema, IP, EP, SP>({
   schema,
   Input = (props) => <input {...props} />,
-  Error = ({ error }) => <span>{error}</span>,
+  Error = ({ error, ...props }) => <span {...props}>{error}</span>,
   InputRadio = (props) => <input {...props} type="radio" />,
   Select = (props) => <select {...props} />,
   Option = (props) => <option {...props} />,
@@ -377,9 +379,15 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
             value={formData[key] ?? ""}
             onChange={(e) => {
               const val = e.target.value;
-              const res = scheme.safeParse(val);
 
-              setFormData((prev) => ({ ...prev, [key]: val }));
+              const res = scheme.safeParse(
+                scheme._def?.typeName === "ZodNumber" ? Number(val) : val,
+              );
+
+              setFormData((prev) => ({
+                ...prev,
+                [key]: res.success ? res.data : val,
+              }));
               if (res.success) {
                 setErrors((prev) => ({ ...prev, [key]: undefined }));
               } else {
@@ -431,6 +439,18 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       capitalizedKey as CapitalizedKey
     ]!.displayName = `Form.Error.${capitalizedKey}`;
   });
+
+  Form.useOnChange = (
+    cb: (
+      formData: RawFormData,
+      formErrors: FormErrors,
+    ) => ReturnType<EffectCallback>,
+  ) => {
+    const formData = useAtomValue(formAtom);
+    const formErrors = useAtomValue(errorsAtom);
+
+    useEffect(() => cb(formData, formErrors), [formData, formErrors]);
+  };
 
   Form.useReset = () => {
     const [, setFormData] = useAtom(formAtom);
