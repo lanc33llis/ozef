@@ -20,7 +20,7 @@
     "downlevelIteration": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "outDir": "./lib",
+    "outDir": "./dist",
     "noUncheckedIndexedAccess": true
   },
   "include": ["index.ts", "test/**/*"]

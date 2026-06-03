@@ -1,4 +1,4 @@
-import React, { EffectCallback, JSX, useEffect, useId } from "react";
+import React, { JSX, useEffect, useId } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import { z, type ZodError, type ZodObject, type ZodTypeAny } from "zod";
 
@@ -20,15 +20,40 @@ export type OzefInputProps = InputMetaProps;
 type FormInputProps = JSX.IntrinsicElements["input"] & InputMetaProps;
 type FormSelectProps = JSX.IntrinsicElements["select"] & InputMetaProps;
 type FormOptionProps = JSX.IntrinsicElements["option"];
-type FormErrorComponentProps = {
+type FormErrorComponentProps = JSX.IntrinsicElements["span"] & {
   error?: string;
-  className?: string;
 };
-type FormSubmitProps = {
+type FormSubmitProps = Omit<JSX.IntrinsicElements["button"], "type"> & {
   type?: "submit";
   submitting?: boolean;
-  disabled?: boolean;
-  className?: string;
+};
+
+const unwrapZodType = (scheme: ZodTypeAny): ZodTypeAny => {
+  let current = scheme;
+
+  while (
+    current._def.typeName === "ZodOptional" ||
+    current._def.typeName === "ZodNullable" ||
+    current._def.typeName === "ZodDefault"
+  ) {
+    current = current._def.innerType ?? current._def.schema;
+  }
+
+  return current;
+};
+
+const getZodTypeName = (scheme: ZodTypeAny) => unwrapZodType(scheme)._def.typeName;
+
+const parseFormValue = (scheme: ZodTypeAny, value: unknown) => {
+  if (getZodTypeName(scheme) === "ZodNumber") {
+    if (value === "" || value === undefined || value === null) {
+      return undefined;
+    }
+
+    return Number(value);
+  }
+
+  return value;
 };
 
 // Actually supported types at the moment
@@ -44,6 +69,7 @@ type OzefInputSchema = {
 
 interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
   schema: ZodObject<T>;
+  Container?: React.ElementType;
   Input?: React.FC<FormInputProps & IP>;
   InputMetaProps?: InputMetaProps;
   InputRadio?: React.FC<FormInputProps & IP>;
@@ -57,12 +83,17 @@ interface CreateFormArgs<T extends OzefInputSchema, IP, SP> {
 
 function ozef<T extends OzefInputSchema, IP, EP, SP>({
   schema,
-  Input = (props) => <input {...props} />,
+  Container = "form",
+  Input = ({ errorful, errorClassName, radioValue, ...props }) => (
+    <input {...props} />
+  ),
   Error = ({ error, ...props }) => <span {...props}>{error}</span>,
-  InputRadio = (props) => <input {...props} type="radio" />,
+  InputRadio = ({ errorful, errorClassName, radioValue, ...props }) => (
+    <input {...props} type="radio" />
+  ),
   Select = (props) => <select {...props} />,
   Option = (props) => <option {...props} />,
-  Submit = (props) => <button {...props} type="submit" />,
+  Submit = ({ submitting, ...props }) => <button {...props} type="submit" />,
   ariaLabel,
   defaults,
 }: CreateFormArgs<T, IP, SP>) {
@@ -98,56 +129,67 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
     const keys = Object.keys(schema.shape) as (keyof T & string)[];
 
     return (
-      <form
+      <Container
         {...props}
         aria-busy={submitting}
         aria-label={ariaLabel}
-        onSubmit={(e) => {
-          e.preventDefault();
+        {...(Container === "form" && {
+          onSubmit: (e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
 
-          const _errors = {} as FormErrors;
+            const _errors = {} as FormErrors;
+            const parsedFormData = {} as ParsedFormData;
 
-          Object.entries(schema.shape).map(
-            ([key, scheme]: [keyof FormErrors, ZodTypeAny]) => {
-              const value = formData[key];
-              const result = scheme.safeParse(value);
-              if (result.success) {
-                _errors[key] = undefined;
-              } else {
-                _errors[key] = result.error as any;
+            Object.entries(schema.shape).map(
+              ([key, scheme]: [keyof FormErrors, ZodTypeAny]) => {
+                const value = formData[key];
+                const valueToParse = parseFormValue(scheme, value);
+                const result = scheme.safeParse(valueToParse);
+
+                if (result.success) {
+                  _errors[key] = undefined;
+                  parsedFormData[key as keyof ParsedFormData] = result.data;
+                } else {
+                  _errors[key] = result.error as any;
+                }
+              },
+            );
+
+            setTouched(
+              keys.reduce((acc, key) => ({ ...acc, [key]: true }), {}),
+            );
+            setErrors(_errors);
+
+            if (Object.values(_errors).some((error) => error !== undefined)) {
+              return;
+            } else {
+              if (props.onSubmit) {
+                setSubmitting(true);
+
+                const utils = {
+                  reset: () => {
+                    setFormData({});
+                    setErrors({});
+                    setTouched({});
+                    setSubmitting(false);
+                  },
+                  setError: (key, err) => {
+                    setErrors((prev) => ({ ...prev, [key]: err }));
+                  },
+                } as FormUtils<ParsedFormData>;
+
+                Promise.resolve(
+                  props.onSubmit(parsedFormData, utils),
+                ).finally(() => setSubmitting(false));
               }
-            },
-          );
-
-          setTouched(keys.reduce((acc, key) => ({ ...acc, [key]: true }), {}));
-          setErrors(_errors);
-
-          if (Object.values(_errors).some((error) => error !== undefined)) {
-            return;
-          } else {
-            setSubmitting(true);
-            if (props.onSubmit) {
-              const utils = {
-                reset: () => {
-                  setFormData({});
-                  setErrors({});
-                  setTouched({});
-                  setSubmitting(false);
-                },
-                setError: (key, err) => {
-                  setErrors((prev) => ({ ...prev, [key]: err }));
-                },
-              } as FormUtils<ParsedFormData>;
-
-              Promise.resolve(
-                props.onSubmit(formData as ParsedFormData, utils),
-              ).finally(() => setSubmitting(false));
             }
-          }
-        }}
+          },
+        })}
       />
     );
   };
+
+  Form.atom = formAtom;
 
   type CapitalizedKey = Capitalize<keyof T & string>;
   type CapitalizeKeys<T> = {
@@ -303,9 +345,10 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
       scheme.options.map((literal: z.ZodLiteral<string>) => {
         const { value: option } = literal;
         const capitalizedOption = option[0]!.toUpperCase() + option.slice(1);
-        const fd = useAtomValue(formAtom);
 
         func[capitalizedOption] = (props: FieldProps) => {
+          const fd = useAtomValue(formAtom);
+
           return (
             <Option
               {...defaultAria(props)}
@@ -326,7 +369,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
 
         const hasError = errors[key] && touched[key];
         let className = `${props.className ?? ""} ${
-          hasError ? errorClassName ?? "" : ""
+          hasError ? (errorClassName ?? "") : ""
         }`;
         className = className.trim();
 
@@ -364,7 +407,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
 
         const hasError = errors[key] && touched[key];
         let className = `${props.className ?? ""} ${
-          hasError ? errorClassName ?? "" : ""
+          hasError ? (errorClassName ?? "") : ""
         }`;
         className = className.trim();
 
@@ -375,19 +418,14 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
               className,
             })}
             {...defaultAria(props)}
+            type={getZodTypeName(scheme) === "ZodNumber" ? "number" : "text"}
             name={key}
             value={formData[key] ?? ""}
             onChange={(e) => {
               const val = e.target.value;
+              const res = scheme.safeParse(parseFormValue(scheme, val));
 
-              const res = scheme.safeParse(
-                scheme._def?.typeName === "ZodNumber" ? Number(val) : val,
-              );
-
-              setFormData((prev) => ({
-                ...prev,
-                [key]: res.success ? res.data : val,
-              }));
+              setFormData((prev) => ({ ...prev, [key]: val }));
               if (res.success) {
                 setErrors((prev) => ({ ...prev, [key]: undefined }));
               } else {
@@ -435,33 +473,7 @@ function ozef<T extends OzefInputSchema, IP, EP, SP>({
 
       return null;
     }) as FormErrorComponent;
-    Form.Error[
-      capitalizedKey as CapitalizedKey
-    ]!.displayName = `Form.Error.${capitalizedKey}`;
   });
-
-  Form.useOnChange = (
-    cb: (
-      formData: RawFormData,
-      formErrors: FormErrors,
-    ) => ReturnType<EffectCallback>,
-  ) => {
-    const formData = useAtomValue(formAtom);
-    const formErrors = useAtomValue(errorsAtom);
-    const formTouched = useAtomValue(touchedAtom);
-
-    useEffect(() => {
-      const values = Object.values(formTouched);
-
-      if (
-        values.length !== 1 &&
-        (values.length === 0 || Object.values(values).every((v) => v === false))
-      )
-        return;
-
-      cb(formData, formErrors);
-    }, [formData, formErrors]);
-  };
 
   Form.useReset = () => {
     const [, setFormData] = useAtom(formAtom);

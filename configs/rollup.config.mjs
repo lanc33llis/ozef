@@ -10,27 +10,16 @@ const config = {
   external: ["react", "jotai", "zod"],
   output: [
     {
-      file: "lib/index.mjs",
+      file: "dist/index.mjs",
       format: "es",
       sourcemap: false,
       exports: "named",
-      globals: {
-        react: "React",
-        jotai: "jotai",
-        zod: "zod",
-      },
     },
     {
-      file: "lib/index.umd.js",
-      name: "Ozef",
-      format: "umd",
+      file: "dist/index.cjs",
+      format: "cjs",
       sourcemap: false,
       exports: "named",
-      globals: {
-        react: "React",
-        jotai: "jotai",
-        zod: "zod",
-      },
     },
   ],
   plugins: [
