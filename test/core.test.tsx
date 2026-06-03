@@ -96,6 +96,16 @@ test("renders union literal fields as select options and submits the selected va
     </Form>,
   );
 
+  expect(screen.getByTestId("color").tagName).toBe("SELECT");
+  expect(screen.getByRole("option", { name: "Red" })).toHaveAttribute(
+    "value",
+    "Red",
+  );
+  expect(screen.getByRole("option", { name: "Blue" })).toHaveAttribute(
+    "value",
+    "Blue",
+  );
+
   fireEvent.change(screen.getByTestId("color"), {
     target: { value: "Blue" },
   });
@@ -103,6 +113,32 @@ test("renders union literal fields as select options and submits the selected va
 
   await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   expect(onSubmit.mock.calls[0][0]).toEqual({ color: "Blue" });
+});
+
+test("submits the initial native select value when the user does not change it", async () => {
+  const onSubmit = jest.fn();
+  const Form = ozef({
+    schema: z.object({
+      color: z.union([z.literal("Red"), z.literal("Blue")]),
+    }),
+  });
+
+  render(
+    <Form data-testid="form" onSubmit={onSubmit}>
+      <Form.Field.Color data-testid="color">
+        <Form.Field.Color.Red />
+        <Form.Field.Color.Blue />
+      </Form.Field.Color>
+      <button type="submit">Submit</button>
+    </Form>,
+  );
+
+  await waitFor(() => expect(screen.getByTestId("color")).toHaveValue("Red"));
+
+  fireEvent.submit(screen.getByTestId("form"));
+
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  expect(onSubmit.mock.calls[0][0]).toEqual({ color: "Red" });
 });
 
 test("does not submit invalid values", async () => {
@@ -141,7 +177,11 @@ test("submits checkbox values", async () => {
     </Form>,
   );
 
+  expect(screen.getByTestId("enabled")).not.toBeChecked();
+
   fireEvent.click(screen.getByTestId("enabled"));
+  expect(screen.getByTestId("enabled")).toBeChecked();
+
   fireEvent.submit(screen.getByTestId("form"));
 
   await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -215,6 +255,13 @@ test("submits enum radio values", async () => {
       <button type="submit">Submit</button>
     </Form>,
   );
+
+  expect(screen.getByTestId("red")).toHaveAttribute("type", "radio");
+  expect(screen.getByTestId("red")).toHaveAttribute("name", "color");
+  expect(screen.getByTestId("red")).toHaveAttribute("value", "Red");
+  expect(screen.getByTestId("blue")).toHaveAttribute("type", "radio");
+  expect(screen.getByTestId("blue")).toHaveAttribute("name", "color");
+  expect(screen.getByTestId("blue")).toHaveAttribute("value", "Blue");
 
   fireEvent.click(screen.getByTestId("blue"));
   fireEvent.submit(screen.getByTestId("form"));
@@ -305,6 +352,63 @@ test("passes radio metadata to custom radio components", () => {
   expect(screen.getByTestId("blue")).toHaveAttribute("data-radio-value", "Blue");
 });
 
+test("renders custom Select and Option slots", async () => {
+  const onSubmit = jest.fn();
+  const Form = ozef({
+    schema: z.object({
+      color: z.union([z.literal("red"), z.literal("blue")]),
+    }),
+    Select: ({ field, inputProps, children }) => (
+      <select
+        {...inputProps}
+        data-testid="custom-select"
+        data-field-name={field?.name}
+      >
+        {children}
+      </select>
+    ),
+    Option: ({ name, ...props }) => (
+      <option {...props} data-testid={`custom-option-${props.value}`}>
+        {props.children}
+        {name ? ` (${name})` : ""}
+      </option>
+    ),
+  });
+
+  render(
+    <Form data-testid="form" onSubmit={onSubmit}>
+      <Form.Field name="color">
+        <Form.Option name="color" value="red">
+          Red
+        </Form.Option>
+        <Form.Option name="color" value="blue">
+          Blue
+        </Form.Option>
+      </Form.Field>
+      <button type="submit">Submit</button>
+    </Form>,
+  );
+
+  expect(screen.getByTestId("custom-select")).toHaveAttribute(
+    "data-field-name",
+    "color",
+  );
+  expect(screen.getByTestId("custom-option-red")).toHaveTextContent(
+    "Red (color)",
+  );
+  expect(screen.getByTestId("custom-option-blue")).toHaveTextContent(
+    "Blue (color)",
+  );
+
+  fireEvent.change(screen.getByTestId("custom-select"), {
+    target: { value: "blue" },
+  });
+  fireEvent.submit(screen.getByTestId("form"));
+
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  expect(onSubmit.mock.calls[0][0]).toEqual({ color: "blue" });
+});
+
 test("does not stay busy when a valid form has no submit handler", async () => {
   const Form = ozef({
     schema: z.object({
@@ -359,6 +463,62 @@ test("sets submitting state while async submit is pending", async () => {
 
   await waitFor(() => expect(screen.getByTestId("submit")).not.toBeDisabled());
   expect(screen.getByTestId("submit")).toHaveAttribute("aria-busy", "false");
+});
+
+test("renders custom Submit slot with submitting state", async () => {
+  let resolveSubmit!: () => void;
+  const onSubmit = jest.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveSubmit = resolve;
+      }),
+  );
+  const Form = ozef({
+    schema: z.object({
+      name: z.string().min(1),
+    }),
+    Submit: ({ submitting, ...props }) => (
+      <button
+        {...props}
+        data-testid="custom-submit"
+        data-submitting={submitting ? "true" : "false"}
+      />
+    ),
+  });
+
+  render(
+    <Form data-testid="form" onSubmit={onSubmit}>
+      <Form.Field.Name data-testid="name" />
+      <Form.Submit>Save</Form.Submit>
+    </Form>,
+  );
+
+  expect(screen.getByTestId("custom-submit")).toHaveTextContent("Save");
+  expect(screen.getByTestId("custom-submit")).toHaveAttribute(
+    "data-submitting",
+    "false",
+  );
+
+  fireEvent.change(screen.getByTestId("name"), { target: { value: "Ada" } });
+  fireEvent.submit(screen.getByTestId("form"));
+
+  await waitFor(() =>
+    expect(screen.getByTestId("custom-submit")).toHaveAttribute(
+      "data-submitting",
+      "true",
+    ),
+  );
+
+  await act(async () => {
+    resolveSubmit();
+  });
+
+  await waitFor(() =>
+    expect(screen.getByTestId("custom-submit")).toHaveAttribute(
+      "data-submitting",
+      "false",
+    ),
+  );
 });
 
 test("reset utility clears form values and errors", async () => {
