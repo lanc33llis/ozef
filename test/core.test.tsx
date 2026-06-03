@@ -258,8 +258,11 @@ test("passes error metadata to custom input components", async () => {
     schema: z.object({
       name: z.string().min(2),
     }),
-    Input: ({ errorful, errorClassName, radioValue, ...props }) => (
-      <input {...props} data-errorful={errorful ? "true" : "false"} />
+    Input: ({ field, inputProps }) => (
+      <input
+        {...inputProps}
+        data-errorful={field?.invalid ? "true" : "false"}
+      />
     ),
   });
 
@@ -283,8 +286,8 @@ test("passes radio metadata to custom radio components", () => {
     schema: z.object({
       color: z.enum(["Red", "Blue"]),
     }),
-    InputRadio: ({ radioValue, errorful, errorClassName, ...props }) => (
-      <input {...props} data-radio-value={radioValue} />
+    InputRadio: ({ inputProps, radioValue }) => (
+      <input {...inputProps} data-radio-value={radioValue} />
     ),
   });
 
@@ -441,4 +444,203 @@ test("imperative field helpers set and read values after mount", async () => {
 
   await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   expect(onSubmit.mock.calls[0][0]).toEqual({ name: "Grace" });
+});
+
+test("supports name-based Field and Error components", async () => {
+  const onSubmit = jest.fn();
+  const Form = ozef({
+    schema: z.object({
+      first_name: z.string().min(2, "First name is too short"),
+    }),
+    Error: ({ error, ...props }) => <span {...props}>{error}</span>,
+  });
+
+  render(
+    <Form data-testid="form" onSubmit={onSubmit}>
+      <Form.Field name="first_name" data-testid="first-name" />
+      <Form.Error name="first_name" data-testid="first-name-error" />
+      <Form.Submit>Save</Form.Submit>
+    </Form>,
+  );
+
+  fireEvent.change(screen.getByTestId("first-name"), {
+    target: { value: "A" },
+  });
+  fireEvent.blur(screen.getByTestId("first-name"));
+
+  expect(await screen.findByTestId("first-name-error")).toHaveTextContent(
+    "First name is too short",
+  );
+
+  fireEvent.change(screen.getByTestId("first-name"), {
+    target: { value: "Ada" },
+  });
+  fireEvent.submit(screen.getByTestId("form"));
+
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  expect(onSubmit.mock.calls[0][0]).toEqual({ first_name: "Ada" });
+});
+
+test("supports generic Radio and Option components", async () => {
+  const onSubmit = jest.fn();
+  const Form = ozef({
+    schema: z.object({
+      size: z.enum(["small", "large"]),
+      color: z.union([z.literal("red"), z.literal("blue")]),
+    }),
+  });
+
+  render(
+    <Form data-testid="form" onSubmit={onSubmit}>
+      <Form.Field name="size">
+        <Form.Radio name="size" value="small" data-testid="small" />
+        <Form.Radio name="size" value="large" data-testid="large" />
+      </Form.Field>
+      <Form.Field name="color" data-testid="color">
+        <Form.Option name="color" value="red" />
+        <Form.Option name="color" value="blue" />
+      </Form.Field>
+      <Form.Submit>Save</Form.Submit>
+    </Form>,
+  );
+
+  fireEvent.click(screen.getByTestId("large"));
+  fireEvent.change(screen.getByTestId("color"), {
+    target: { value: "blue" },
+  });
+  fireEvent.submit(screen.getByTestId("form"));
+
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  expect(onSubmit.mock.calls[0][0]).toEqual({
+    size: "large",
+    color: "blue",
+  });
+});
+
+test("useField exposes value, error state, and setter", async () => {
+  const Form = ozef({
+    schema: z.object({
+      name: z.string().min(2, "Name is too short"),
+    }),
+  });
+
+  const FieldTools = () => {
+    const name = Form.useField("name");
+
+    return (
+      <>
+        <button type="button" onClick={() => name.setValue("Grace")}>
+          Set hook value
+        </button>
+        <span data-testid="hook-value">{name.value ?? ""}</span>
+        <span data-testid="hook-invalid">{String(name.invalid)}</span>
+      </>
+    );
+  };
+
+  render(
+    <Form>
+      <Form.Field name="name" data-testid="name" />
+      <FieldTools />
+    </Form>,
+  );
+
+  fireEvent.click(screen.getByText("Set hook value"));
+
+  await waitFor(() => expect(screen.getByTestId("name")).toHaveValue("Grace"));
+  expect(screen.getByTestId("hook-value")).toHaveTextContent("Grace");
+  expect(screen.getByTestId("hook-invalid")).toHaveTextContent("false");
+});
+
+test("useForm exposes values, errors, reset, and setError", async () => {
+  const Form = ozef({
+    schema: z.object({
+      email: z.string().email(),
+    }),
+    defaults: {
+      email: "ada@example.com",
+    },
+    Error: ({ error }) => <span role="alert">{error}</span>,
+  });
+
+  const FormTools = () => {
+    const form = Form.useForm();
+
+    return (
+      <>
+        <span data-testid="form-value">{form.values.email ?? ""}</span>
+        <span data-testid="form-error">{form.errors.email ?? ""}</span>
+        <button
+          type="button"
+          onClick={() => form.setError("email", "Email is already taken")}
+        >
+          Set server error
+        </button>
+        <button type="button" onClick={form.reset}>
+          Reset form
+        </button>
+      </>
+    );
+  };
+
+  render(
+    <Form>
+      <Form.Field name="email" data-testid="email" />
+      <Form.Errors />
+      <FormTools />
+    </Form>,
+  );
+
+  expect(screen.getByTestId("form-value")).toHaveTextContent(
+    "ada@example.com",
+  );
+
+  fireEvent.click(screen.getByText("Set server error"));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Email is already taken",
+  );
+  expect(screen.getByTestId("form-error")).toHaveTextContent(
+    "Email is already taken",
+  );
+
+  fireEvent.click(screen.getByText("Reset form"));
+
+  await waitFor(() => expect(screen.getByTestId("email")).toHaveValue(""));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("renders submission errors from submit utilities", async () => {
+  const Form = ozef({
+    schema: z.object({
+      email: z.string().email(),
+    }),
+    defaults: {
+      email: "ada@example.com",
+    },
+    Error: ({ error, ...props }) => <span {...props}>{error}</span>,
+  });
+
+  render(
+    <Form
+      data-testid="form"
+      onSubmit={(_, utils) => {
+        utils.setError("submission", "Server rejected the request");
+      }}
+    >
+      <Form.Field name="email" data-testid="email" />
+      <Form.Error name="submission" data-testid="submission-error" />
+      <Form.Error.Submission data-testid="legacy-submission-error" />
+      <Form.Submit>Submit</Form.Submit>
+    </Form>,
+  );
+
+  fireEvent.submit(screen.getByTestId("form"));
+
+  expect(await screen.findByTestId("submission-error")).toHaveTextContent(
+    "Server rejected the request",
+  );
+  expect(screen.getByTestId("legacy-submission-error")).toHaveTextContent(
+    "Server rejected the request",
+  );
 });

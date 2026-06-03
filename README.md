@@ -1,268 +1,249 @@
-# Opinionated Zod-empowered forms
+# Ozef
 
-## Introduction
+Opinionated Zod-empowered forms for React.
 
-Ozef is an opinionated library that aims to guarantee type-safe, declarative forms with minimal boilerplate. It is built on top of [Zod](https://github.com/colinhacks/zod) which provides a powerful type system for validating data.
+Ozef builds a typed form component from a Zod object schema. It owns form state,
+validation state, submit state, and field wiring while letting you bring your own
+inputs, buttons, labels, and layout.
 
-Features Ozef supports:
-
-- Guaranteed type-safety in `onSubmit`
-- async `onSubmit`
-- Declarative forms
-- Validation checking
-- Input types like radio and select
-
-Ozef is not a component library. It does not provide any pre-built components. Instead, plug in existing components to build forms.
-
-Ozef lets you build forms like:
-
-```tsx
-import Input from "./CustomInput";
-
-const NewFlowForm = ozef({
-  schema: z.object({
-    name: z.string().min(3),
-    email: z.string().email(),
-    // for radios
-    favoriteColor: z.enum(["Red", "Blue"]),
-    // for selects
-    favoriteColor: z.union([z.literal("Red"), z.literal("Blue")]),
-  }),
-  // Plug in your own input components
-  Input,
-  // Define components for each type
-  InputRadio: ({ radioValue, ...props }) => (
-    <div>
-      {radioValue}
-      <input type="radio" {...props} />
-    </div>
-  ),
-  // Error labels
-  Error: ({ error }) => <span className="text-red-500">{error}</span>,
-  Submit: ({ submitting }) => (
-    <RoundedButton type="submit" loading={submitting}>
-      Submit
-    </RoundedButton>
-  ),
-});
-
-<NewFlowForm
-  className="flex flex-col gap-2"
-  onSubmit={async (vals) => {
-    /** vals has the type { name: string, email: string, favoriteColor: "Red" | "Blue" } */
-    ...
-  }}
->
-  <NewFlowForm.Field.Name prefixIcon="icon_1" />
-  <NewFlowForm.Error.Name />
-
-  <NewFlowForm.Field.Email />
-  <NewFlowForm.Error.Email />
-
-  <NewFlowForm.Error.FavoriteColor />
-  <NewFlowForm.Field.FavoriteColor>
-    <NewFlowForm.Field.FavoriteColor.Blue />
-    <NewFlowForm.Field.FavoriteColor.Red />
-  </NewFlowForm.Field.FavoriteColor>
-
-  <NewFlowForm.Event.Submit />
-  <NewFlowForm.Error.Submission error="Please fill out the form" />
-</NewFlowForm>
-```
-
-with full type-script support!
-
-## Installation
-
-Ozef has minimal dependencies (just Zod and [Jotai](https://github.com/pmndrs/jotai)) and is easy to install.
+## Install
 
 ```bash
-npm i zod@3.21.4 jotai ozef
+npm i ozef zod jotai
 ```
 
-## Usage
+Ozef expects React, React DOM, Jotai, and Zod to be installed by the app. The
+current peer range targets Zod 4.
 
-### Basic usage
+## Supported Schemas
+
+Ozef currently supports this practical Zod subset:
+
+- `z.string()`
+- `z.number()`
+- `z.boolean()`
+- `z.enum(["a", "b"])` for radio groups
+- `z.union([z.literal("a"), z.literal("b")])` for native selects
+- `.optional()`, `.nullable()`, and `.default()` wrappers around the above
+
+Other Zod types may work only if they behave like one of those primitives, but
+they are not part of the supported API yet.
+
+## Basic Usage
 
 ```tsx
 import ozef from "ozef";
+import { z } from "zod";
 
-const Form = ozef({
+const ProfileForm = ozef({
   schema: z.object({
-    name: z.string().min(3),
-    email: z.string().email(),
-  }),
-});
-
-const SomeComponent = () => {
-  return (
-    <Form
-      onSubmit={async (vals) => {
-        // vals is guaranteed to be of type { name: string, email: string }
-        ...
-      }}
-    >
-      // Use `Field` components to render inputs for the form
-      <Form.Field.Name />
-      <Form.Field.Email />
-
-      // Use `Error` components to render error labels
-      <Form.Error.Name />
-
-      // Use `Event` components to render special user events components
-      <Form.Event.Submit />
-    </Form>
-  );
-};
-```
-
-### Ozef Input Components
-
-Components need to modified before being able to be used with Ozef. This is because Ozef needs to be able to pass certain props to the components.
-
-```tsx
-import { type OzefInputProps } from "ozef";
-
-type InputProps = OzefInputProps & {
-  // Add your own props
-  prefixIcon?: string;
-};
-
-const Input = ({ prefixIcon, hasError, ...props }: InputProps) => {
-  return (
-    <div
-      className={`${
-        props.className
-      } ${hasError ? "focus-within:ring-red-500" : ""}`}
-    >
-      {prefixIcon && (
-        <MaterialsIcon className="!text-xl text-zinc-500" icon={prefixIcon} />
-      )}
-      <input
-        {/* This is the important part. Ozef needs to pass props to the native input component. */}
-        {...props}
-        className="..."
-      />
-    </div>
-  );
-};
-```
-
-### Defaults
-
-```tsx
-import ozef from "ozef";
-
-const Form = ozef({
-  schema: z.object({
-    name: z.string().min(3),
-    email: z.string().email(),
+    name: z.string().min(2, "Name is too short"),
+    age: z.number().min(1),
+    newsletter: z.boolean(),
   }),
   defaults: {
-    name: "John Doe",
-    email: "john-doe@gmail.com"
-  }
+    name: "Ada",
+    age: 36,
+    newsletter: true,
+  },
 });
 
-const SomeComponent = () => {
+export function Profile() {
   return (
-    <Form
-      onSubmit={async (vals) => {
-        // vals is guaranteed to be of type { name: string, email: string }
-        ...
+    <ProfileForm
+      onSubmit={async (data) => {
+        // data is typed as { name: string; age: number; newsletter: boolean }
+        await saveProfile(data);
       }}
     >
-      // Use `Field` components to render inputs for the form
-      <Form.Field.Name />
-      <Form.Field.Email />
+      <ProfileForm.Field name="name" />
+      <ProfileForm.Error name="name" />
 
-      // Use `Error` components to render error labels
-      <Form.Error.Name />
+      <ProfileForm.Field name="age" />
+      <ProfileForm.Error name="age" />
 
-      // Use `Event` components to render special user events components
-      <Form.Event.Submit />
-    </Form>
+      <ProfileForm.Field name="newsletter" />
+
+      <ProfileForm.Submit>Save</ProfileForm.Submit>
+    </ProfileForm>
   );
-};
+}
 ```
 
-### Variable defaults
+The `name`-based API works with any schema key, including keys like
+`first_name`, `billing.email`, or keys you only know dynamically.
 
-If you're passing down a variable as defaults, you'll need to use `useMemo` to prevent the form from re-rendering every time the parent component re-renders.
+## PascalCase Sugar
+
+Ozef also generates PascalCase components for simple schemas:
 
 ```tsx
-import ozef from "ozef";
-import { useMemo } from "react";
-
-const SomeComponent = ({defaults}: Props) => {
-  const Form = useMemo(() => ozef({
-    schema: z.object({
-      name: z.string().min(3),
-      email: z.string().email(),
-    }),
-    defaults
-  }), [defaults])
-
-  return (
-    <Form
-      onSubmit={async (vals) => {
-        // vals is guaranteed to be of type { name: string, email: string }
-        ...
-      }}
-    >
-      // Use `Field` components to render inputs for the form
-      <Form.Field.Name />
-      <Form.Field.Email />
-
-      // Use `Error` components to render error labels
-      <Form.Error.Name />
-
-      // Use `Event` components to render special user events components
-      <Form.Event.Submit />
-    </Form>
-  );
-};
+<ProfileForm.Field.Name />
+<ProfileForm.Error.Name />
+<ProfileForm.Field.Age />
 ```
 
-### shadcn/Radix Select example
+Use this when the schema keys are friendly component names. Use
+`<Form.Field name="...">` when keys are dynamic or not valid component-looking
+identifiers.
+
+## Radio And Select Fields
+
+Use `z.enum` for radio values:
 
 ```tsx
-import ozef from "ozef";
-
-const UpdateRewriteSettingsForm = ozef({
+const SettingsForm = ozef({
   schema: z.object({
-    terseness: z.enum(["short", "medium", "long"]),
+    size: z.enum(["small", "large"]),
   }),
 });
 
-const ShadcnExample = () => {
-  // getter hook
-  const terseness = UpdateRewriteSettingsForm.Field.Terseness.useValue();
+<SettingsForm.Field name="size">
+  <SettingsForm.Radio name="size" value="small" />
+  <SettingsForm.Radio name="size" value="large" />
+</SettingsForm.Field>;
+```
+
+Use a union of string literals for native selects:
+
+```tsx
+const ColorForm = ozef({
+  schema: z.object({
+    color: z.union([z.literal("red"), z.literal("blue")]),
+  }),
+});
+
+<ColorForm.Field name="color">
+  <ColorForm.Option name="color" value="red" />
+  <ColorForm.Option name="color" value="blue" />
+</ColorForm.Field>;
+```
+
+The generated PascalCase version still works:
+
+```tsx
+<ColorForm.Field.Color>
+  <ColorForm.Field.Color.Red />
+  <ColorForm.Field.Color.Blue />
+</ColorForm.Field.Color>
+```
+
+## Custom Inputs
+
+Ozef passes two useful props to custom components:
+
+- `field`: typed field state and helpers
+- `inputProps`: safe props to spread onto the native input/select/radio
+
+```tsx
+import type { OzefInputProps } from "ozef";
+
+type TextInputProps = OzefInputProps & {
+  label: string;
+};
+
+function TextInput({ label, field, inputProps }: TextInputProps) {
+  return (
+    <label>
+      {label}
+      <input
+        {...inputProps}
+        aria-invalid={field?.invalid}
+        className={field?.invalid ? "input input-error" : "input"}
+      />
+      {field?.error ? <span>{field.error}</span> : null}
+    </label>
+  );
+}
+
+const LoginForm = ozef({
+  schema: z.object({
+    email: z.string().email(),
+  }),
+  Input: TextInput,
+});
+
+<LoginForm.Field name="email" label="Email" />;
+```
+
+Legacy metadata props like `errorful` and `radioValue` are still passed for
+existing custom inputs, but new components should prefer `field.invalid`,
+`field.error`, and `inputProps`.
+
+## Hooks
+
+Use `Form.useField(name)` when composing custom field UI:
+
+```tsx
+function EmailPreview() {
+  const email = LoginForm.useField("email");
 
   return (
-    <UpdateRewriteSettingsForm
-      onSubmit={() => {
-        // handler
-      }}
-    >
-      <Select
-        value={terseness}
-        // setter function
-        onValueChange={UpdateRewriteSettingsForm.Field.Terseness.setValue}
-      >
-        <div className="space-y-1">
-          <Label>Terseness</Label>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <UpdateRewriteSettingsForm.Field.Terseness.Short />
-            <UpdateRewriteSettingsForm.Field.Terseness.Medium />
-            <UpdateRewriteSettingsForm.Field.Terseness.Long />
-          </SelectContent>
-        </div>
-      </Select>
-    </UpdateRewriteSettingsForm>
+    <button type="button" onClick={() => email.setValue("ada@example.com")}>
+      Use {email.value || "default email"}
+    </button>
   );
-};
+}
 ```
+
+Use `Form.useForm()` for form-level controls:
+
+```tsx
+function FormToolbar() {
+  const form = LoginForm.useForm();
+
+  return (
+    <>
+      <button type="button" onClick={form.reset}>
+        Reset
+      </button>
+      <button
+        type="button"
+        onClick={() => form.setError("email", "Email is already taken")}
+      >
+        Set server error
+      </button>
+      {form.submitting ? "Saving..." : null}
+    </>
+  );
+}
+```
+
+## Submit Errors
+
+`onSubmit` receives utility helpers. Use `setError` for server-side errors:
+
+```tsx
+const AccountForm = ozef({
+  schema: z.object({
+    email: z.string().email(),
+  }),
+});
+
+<AccountForm
+  onSubmit={async (data, utils) => {
+    const result = await createAccount(data);
+
+    if (!result.ok) {
+      utils.setError("email", "Email is already taken");
+      utils.setError("submission", "Please fix the highlighted fields");
+    }
+  }}
+>
+  <AccountForm.Field name="email" />
+  <AccountForm.Error name="email" />
+  <AccountForm.Error name="submission" />
+  <AccountForm.Submit>Create account</AccountForm.Submit>
+</AccountForm>;
+```
+
+Render every visible error with:
+
+```tsx
+<AccountForm.Errors />
+```
+
+## Examples
+
+See `examples/vite-react` for a minimal Vite app using the current recommended
+API with custom inputs, hooks, field errors, and submit errors.
