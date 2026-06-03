@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 
 import "@testing-library/jest-dom";
 
 import { z } from "zod";
 
-import ozef from "../src";
+import ozef, { type OzefInputProps } from "../src";
 
 test("renders", async () => {
   const Form = ozef({
@@ -483,18 +484,41 @@ test("supports name-based Field and Error components", async () => {
 
 test("supports generic Radio and Option components", async () => {
   const onSubmit = jest.fn();
+  type RadioInputProps = OzefInputProps & ComponentProps<"input"> & {
+    label?: string;
+  };
   const Form = ozef({
     schema: z.object({
       size: z.enum(["small", "large"]),
       color: z.union([z.literal("red"), z.literal("blue")]),
     }),
+    InputRadio: ({ label, inputProps }: RadioInputProps) => {
+      const { label: _label, ...nativeInputProps } = inputProps ?? {};
+
+      return (
+        <label>
+          <input {...nativeInputProps} />
+          <span>{label}</span>
+        </label>
+      );
+    },
   });
 
   render(
     <Form data-testid="form" onSubmit={onSubmit}>
       <Form.Field name="size">
-        <Form.Radio name="size" value="small" data-testid="small" />
-        <Form.Radio name="size" value="large" data-testid="large" />
+        <Form.Radio
+          name="size"
+          value="small"
+          label="Small"
+          data-testid="small"
+        />
+        <Form.Radio
+          name="size"
+          value="large"
+          label="Large"
+          data-testid="large"
+        />
       </Form.Field>
       <Form.Field name="color" data-testid="color">
         <Form.Option name="color" value="red" />
@@ -504,6 +528,7 @@ test("supports generic Radio and Option components", async () => {
     </Form>,
   );
 
+  expect(screen.getByText("Large")).toBeInTheDocument();
   fireEvent.click(screen.getByTestId("large"));
   fireEvent.change(screen.getByTestId("color"), {
     target: { value: "blue" },

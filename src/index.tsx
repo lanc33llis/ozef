@@ -67,10 +67,10 @@ type FormSubmitProps = Omit<JSX.IntrinsicElements["button"], "type"> & {
 type GenericFieldProps<T extends OzefInputSchema> = {
   name: keyof T & string;
 } & Record<string, unknown>;
-type GenericChoiceProps<T extends OzefInputSchema> = {
+type GenericChoiceProps<T extends OzefInputSchema, ExtraProps = {}> = {
   name: keyof T & string;
   value: string;
-} & Omit<FormInputProps, "name" | "value">;
+} & Omit<FormInputProps & ExtraProps, "name" | "value">;
 type GenericErrorProps<T extends OzefInputSchema> = {
   name: (keyof T & string) | "submission";
 } & FormErrorComponentProps;
@@ -520,7 +520,7 @@ function ozef<
     value,
     errorClassName,
     ...props
-  }: GenericChoiceProps<T>) => {
+  }: GenericChoiceProps<T, IP>) => {
     const field = useFieldState(name);
     const checked = field.value === value;
     const radioProps = stripInputMetaProps(props as FormInputProps);
@@ -635,7 +635,7 @@ function ozef<
 
   Form.Field = Field;
   Form.Error = ErrorNamespace;
-  Form.Radio = GenericRadio;
+  Form.Radio = GenericRadio as React.FC<GenericChoiceProps<T, IP>>;
   Form.Option = GenericOption;
   Form.Errors = AllErrors;
 
