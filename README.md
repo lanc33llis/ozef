@@ -2,9 +2,10 @@
 
 Opinionated Zod-empowered forms for React.
 
-Ozef builds a typed form component from a Zod object schema. It owns form state,
-validation state, submit state, and field wiring while letting you bring your own
-inputs, buttons, labels, and layout.
+Ozef builds a typed form component from a `z.object()`, `z.strictObject()`, or
+`z.looseObject()` schema. It owns form state, validation state, submit state, and
+field wiring while letting you bring your own inputs, buttons, labels, and
+layout.
 
 ## Install
 
@@ -20,11 +21,28 @@ current peer range targets Zod 4.
 Ozef currently supports this practical Zod subset:
 
 - `z.string()`
+- `z.templateLiteral()`
 - `z.number()`
 - `z.boolean()`
 - `z.enum(["a", "b"])` for radio groups
 - `z.union([z.literal("a"), z.literal("b")])` for native selects
 - `.optional()`, `.nullable()`, and `.default()` wrappers around the above
+
+Ozef infers native input types from these Zod string formats, including their
+equivalent chained `z.string()` validators:
+
+| Zod format                  | Native input                    |
+| --------------------------- | ------------------------------- |
+| `z.email()`                 | `type="email"`                  |
+| `z.url()` and `z.httpUrl()` | `type="url"`                    |
+| `z.e164()`                  | `type="tel"`                    |
+| `z.iso.date()`              | `type="date"`                   |
+| `z.iso.time()`              | `type="time"` with `step="any"` |
+
+Other string formats—including `z.uuid()`, `z.guid()`, and
+`z.iso.datetime()`—render as `type="text"`. A native `datetime-local` input
+does not accept the timezone suffix required by Zod's default ISO datetime
+schema.
 
 Other Zod types may work only if they behave like one of those primitives, but
 they are not part of the supported API yet.
@@ -128,15 +146,54 @@ The generated PascalCase version still works:
 </ColorForm.Field.Color>
 ```
 
-## Custom Inputs
+## Custom Components
 
-Ozef passes two useful props to custom components:
+Ozef owns form state and validation; your component owns the markup and visual
+design. A custom component should use one of two integration patterns:
 
-- `field`: typed field state and helpers
-- `inputProps`: safe props to spread onto the native input/select/radio
+1. **Native-compatible controls**—such as a plain `<input>` or shadcn
+   `Input`—spread Ozef's `inputProps`. Those props already contain the current
+   value, inferred type, accessibility state, and wired `onChange`/`onBlur`
+   handlers.
+2. **Controlled composite controls**—such as shadcn `Checkbox`, `Select`, or
+   `RadioGroup`—translate `field.value`, `field.setValue()`, and
+   `field.touch()` into that component's API.
 
-The main replacement slots are `Input`, `InputRadio`, `Select`, `Option`,
-`Error`, and `Submit`. `Input` handles text, number, and checkbox fields.
+### Slots and responsibilities
+
+| Ozef option  | Replaces                                         | Use it for                                                       |
+| ------------ | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `Input`      | Every generated text, number, and checkbox field | Native inputs, shadcn `Input`, and a branch to shadcn `Checkbox` |
+| `InputRadio` | Each generated radio item                        | A native-style radio item; not a `RadioGroup` root               |
+| `Select`     | The complete generated native select             | shadcn/Radix `Select` or another controlled select               |
+| `Option`     | Each native `<option>`                           | Styling/wrapping native selects only                             |
+| `Error`      | `Form.Error` and `Form.Errors` output            | Design-system error text                                         |
+| `Submit`     | `Form.Submit`                                    | Design-system buttons and loading states                         |
+
+Every field-like slot receives two Ozef metadata props:
+
+- `field`: `{ name, value, error, invalid, touched, required, setValue, touch }`
+- `inputProps`: the native props Ozef would put on its default element,
+  including `name`, `type`, `value` or `checked`, accessibility attributes,
+  `onChange`, and `onBlur`
+
+Keep these rules in mind:
+
+- Spread `inputProps`, not the entire custom component props object, onto a DOM
+  element. The latter also contains `field`, `inputProps`, and your custom props.
+- Custom props passed to `<Form.Field>`, such as `label` or `hint`, also appear
+  inside `inputProps`. Remove them before spreading onto a DOM element.
+- With a native-compatible input, do not also call `field.setValue()`; the
+  `inputProps.onChange` handler already does it.
+- With a composite control, call `field.setValue(nextValue)` when it changes and
+  `field.touch()` when the user has interacted or leaves the control.
+- Render errors either inside the custom field with `field.error` or separately
+  with `<Form.Error name="..." />`. Doing both displays the same error twice.
+
+### Your own native-style input
+
+This is the smallest complete adapter for a component that ends in a native
+`<input>`:
 
 ```tsx
 import type { OzefInputProps } from "ozef";
@@ -149,107 +206,170 @@ type TextInputProps = OzefInputProps & {
 
 function TextInput({ label, field, inputProps }: TextInputProps) {
   const { label: _label, ...nativeInputProps } = inputProps ?? {};
+  const errorId = nativeInputProps.id
+    ? `${nativeInputProps.id}-error`
+    : undefined;
 
   return (
-    <label>
-      {label}
+    <div>
+      <label htmlFor={nativeInputProps.id}>{label}</label>
       <input
         {...nativeInputProps}
-        aria-invalid={field?.invalid}
-        className={field?.invalid ? "input input-error" : "input"}
+        aria-describedby={
+          field?.error ? errorId : nativeInputProps["aria-describedby"]
+        }
+        className={
+          field?.invalid
+            ? `${nativeInputProps.className ?? ""} input-error`.trim()
+            : nativeInputProps.className
+        }
       />
-      {field?.error ? <span>{field.error}</span> : null}
-    </label>
+      {field?.error ? (
+        <p id={errorId} role="alert">
+          {field.error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
 const LoginForm = ozef({
   schema: z.object({
-    email: z.string().email(),
+    email: z.email(),
   }),
   Input: TextInput,
 });
 
-<LoginForm.Field name="email" label="Email" />;
+<LoginForm>
+  <LoginForm.Field name="email" id="email" label="Email" />
+  <LoginForm.Submit>Sign in</LoginForm.Submit>
+</LoginForm>;
 ```
 
-For shadcn/ui text inputs and checkboxes, branch on Ozef's generated native
-`type`:
+Because this component renders `field.error` itself, do not also render
+`<LoginForm.Error name="email" />` for this field.
+
+### shadcn Input and Checkbox
+
+shadcn components are source code in your application, so you can adapt them
+directly. Add the primitives you need, for example:
+
+```bash
+bunx shadcn@latest add input checkbox label button select radio-group
+```
+
+shadcn `Input` is native-compatible, but shadcn `Checkbox` uses
+`checked`/`onCheckedChange`. One `Input` slot can handle both by branching on
+Ozef's generated `inputProps.type`:
 
 ```tsx
 import type { ComponentProps } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input as UiInput } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { OzefInputProps } from "ozef";
 import ozef from "ozef";
 import { z } from "zod";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input as UiInput } from "@/components/ui/input";
 
-type FieldInputProps = OzefInputProps & ComponentProps<"input"> & {
-  label?: string;
-};
+type FieldInputProps = OzefInputProps &
+  ComponentProps<"input"> & {
+    label: string;
+  };
 
 function FieldInput({ field, inputProps, label }: FieldInputProps) {
   const { label: _label, ...nativeInputProps } = inputProps ?? {};
+  const errorId = nativeInputProps.id
+    ? `${nativeInputProps.id}-error`
+    : undefined;
 
-  if (inputProps?.type === "checkbox") {
+  if (nativeInputProps.type === "checkbox") {
     return (
-      <label>
-        <Checkbox
-          id={inputProps.id}
-          name={inputProps.name}
-          checked={Boolean(field?.value)}
-          disabled={inputProps.disabled}
-          required={field?.required}
-          aria-invalid={field?.invalid}
-          onCheckedChange={(checked) => {
-            field?.setValue(checked === true);
-            field?.touch();
-          }}
-          onBlur={() => field?.touch()}
-        />
-        {label}
-      </label>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={nativeInputProps.id}
+            name={nativeInputProps.name}
+            checked={field?.value === true}
+            disabled={nativeInputProps.disabled}
+            required={field?.required}
+            aria-invalid={field?.invalid}
+            aria-describedby={field?.error ? errorId : undefined}
+            onCheckedChange={(checked) => {
+              field?.setValue(checked === true);
+              field?.touch();
+            }}
+            onBlur={() => field?.touch()}
+          />
+          <Label htmlFor={nativeInputProps.id}>{label}</Label>
+        </div>
+        {field?.error ? (
+          <p id={errorId} role="alert" className="text-sm text-destructive">
+            {field.error}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
   return (
-    <label>
-      {label}
+    <div className="space-y-2">
+      <Label htmlFor={nativeInputProps.id}>{label}</Label>
       <UiInput
         {...nativeInputProps}
         aria-invalid={field?.invalid}
+        aria-describedby={
+          field?.error ? errorId : nativeInputProps["aria-describedby"]
+        }
       />
-    </label>
+      {field?.error ? (
+        <p id={errorId} role="alert" className="text-sm text-destructive">
+          {field.error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
 const PreferencesForm = ozef({
   schema: z.object({
-    email: z.string().email(),
+    email: z.email(),
     marketing: z.boolean(),
   }),
   Input: FieldInput,
 });
 
-<PreferencesForm.Field name="email" label="Email" />;
-<PreferencesForm.Field name="marketing" label="Email updates" />;
+<PreferencesForm>
+  <PreferencesForm.Field name="email" id="email" label="Email" />
+  <PreferencesForm.Field
+    name="marketing"
+    id="marketing"
+    label="Email updates"
+  />
+  <PreferencesForm.Submit>Save</PreferencesForm.Submit>
+</PreferencesForm>;
 ```
+
+If your project uses shadcn's higher-level `Field` layout components, place the
+same adapter logic inside that layout; Ozef should remain the owner of value and
+validation state.
+
+### shadcn Select
 
 For shadcn/ui or Radix Select, map the Ozef field state into Radix's controlled
 `value` and `onValueChange` props instead of spreading `inputProps` onto every
 part:
 
 ```tsx
-import type { OzefInputProps } from "ozef";
-import ozef from "ozef";
-import { z } from "zod";
 import {
-  Select as UiSelect,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Select as UiSelect,
 } from "@/components/ui/select";
+import type { OzefInputProps } from "ozef";
+import ozef from "ozef";
+import { z } from "zod";
 
 type SelectInputProps = OzefInputProps & {
   placeholder?: string;
@@ -308,25 +428,36 @@ const TicketForm = ozef({
   Select: SelectInput,
 });
 
-<TicketForm.Field
-  name="priority"
-  placeholder="Priority"
-  options={[
-    { label: "Low", value: "low" },
-    { label: "Normal", value: "normal" },
-    { label: "High", value: "high" },
-  ]}
-/>;
+<TicketForm>
+  <TicketForm.Field
+    name="priority"
+    id="priority"
+    placeholder="Priority"
+    options={[
+      { label: "Low", value: "low" },
+      { label: "Normal", value: "normal" },
+      { label: "High", value: "high" },
+    ]}
+  />
+  <TicketForm.Error name="priority" />
+  <TicketForm.Submit>Create ticket</TicketForm.Submit>
+</TicketForm>;
 ```
 
+Because this replaces the entire native select, render `SelectItem` components
+inside the adapter. Do not also render `TicketForm.Option` children.
+
+### shadcn RadioGroup
+
 For shadcn/ui or Radix RadioGroup, control the whole group with
-`Form.useField(name)`:
+`Form.useField(name)`. `InputRadio` replaces one radio item at a time, so it is
+not the right abstraction for a composite `RadioGroup` root:
 
 ```tsx
-import ozef from "ozef";
-import { z } from "zod";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import ozef from "ozef";
+import { z } from "zod";
 
 type Frequency = "daily" | "weekly" | "never";
 
@@ -340,36 +471,54 @@ function FrequencyField() {
   const frequency = NotificationForm.useField("frequency");
 
   return (
-    <RadioGroup
-      name={frequency.name}
-      value={frequency.value ?? ""}
-      required={frequency.required}
-      aria-invalid={frequency.invalid}
-      onValueChange={(value) => {
-        frequency.setValue(value as Frequency);
-        frequency.touch();
-      }}
-    >
-      {[
-        ["daily", "Daily"],
-        ["weekly", "Weekly"],
-        ["never", "Never"],
-      ].map(([value, label]) => (
-        <div key={value}>
-          <RadioGroupItem id={`frequency-${value}`} value={value} />
-          <Label htmlFor={`frequency-${value}`}>{label}</Label>
-        </div>
-      ))}
-    </RadioGroup>
+    <fieldset>
+      <legend>Notification frequency</legend>
+      <RadioGroup
+        name={frequency.name}
+        value={frequency.value ?? ""}
+        required={frequency.required}
+        aria-invalid={frequency.invalid}
+        aria-describedby={frequency.error ? "frequency-error" : undefined}
+        onValueChange={(value) => {
+          frequency.setValue(value as Frequency);
+          frequency.touch();
+        }}
+        onBlur={() => frequency.touch()}
+      >
+        {[
+          ["daily", "Daily"],
+          ["weekly", "Weekly"],
+          ["never", "Never"],
+        ].map(([value, label]) => (
+          <div key={value} className="flex items-center gap-2">
+            <RadioGroupItem id={`frequency-${value}`} value={value} />
+            <Label htmlFor={`frequency-${value}`}>{label}</Label>
+          </div>
+        ))}
+      </RadioGroup>
+      {frequency.error ? (
+        <p
+          id="frequency-error"
+          role="alert"
+          className="text-sm text-destructive"
+        >
+          {frequency.error}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 
 <NotificationForm>
   <FrequencyField />
-  <NotificationForm.Error name="frequency" />
   <NotificationForm.Submit>Save</NotificationForm.Submit>
 </NotificationForm>;
 ```
+
+This example renders `frequency.error` inline. Alternatively, remove that
+paragraph and use `<NotificationForm.Error name="frequency" />`.
+
+### Native radio and option slots
 
 For native radio items, replace the `InputRadio` slot and keep using
 `Form.Radio`:
@@ -380,9 +529,10 @@ import type { OzefInputProps } from "ozef";
 import ozef from "ozef";
 import { z } from "zod";
 
-type RadioInputProps = OzefInputProps & ComponentProps<"input"> & {
-  label: string;
-};
+type RadioInputProps = OzefInputProps &
+  ComponentProps<"input"> & {
+    label: string;
+  };
 
 function RadioInput({ label, field, inputProps }: RadioInputProps) {
   const { label: _label, ...nativeInputProps } = inputProps ?? {};
@@ -439,6 +589,8 @@ const NativeThemeForm = ozef({
   </NativeThemeForm.Option>
 </NativeThemeForm.Field>;
 ```
+
+### Error and submit slots
 
 Use `Error` and `Submit` for design-system error text and buttons:
 

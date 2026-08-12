@@ -3,9 +3,12 @@ import type { ComponentProps } from "react";
 
 import "@testing-library/jest-dom";
 
+import { axe, toHaveNoViolations } from "jest-axe";
 import { z } from "zod";
 
 import ozef, { type OzefInputProps } from "../src";
+
+expect.extend(toHaveNoViolations);
 
 test("renders", async () => {
   const Form = ozef({
@@ -41,6 +44,8 @@ test("submits parsed number values", async () => {
       <button type="submit">Submit</button>
     </Form>,
   );
+
+  expect(screen.getByTestId("age")).toHaveAttribute("step", "any");
 
   fireEvent.change(screen.getByTestId("age"), { target: { value: "42" } });
   fireEvent.submit(screen.getByTestId("form"));
@@ -78,6 +83,114 @@ test("submits string and number values from a rendered React form", async () => 
   expect(onSubmit.mock.calls[0][0]).toEqual({ name: "Grace", age: 41 });
 });
 
+test("infers native input types from Zod string formats", () => {
+  const Form = ozef({
+    schema: z.object({
+      email: z.email(),
+      legacyEmail: z.string().email(),
+      optionalEmail: z.email().optional(),
+      website: z.url(),
+      legacyWebsite: z.string().url(),
+      httpWebsite: z.httpUrl(),
+      phone: z.e164(),
+      legacyPhone: z.string().e164(),
+      birthday: z.iso.date(),
+      legacyBirthday: z.string().date(),
+      appointment: z.iso.time(),
+      legacyAppointment: z.string().time(),
+      identifier: z.uuid(),
+      guid: z.guid(),
+      slug: z.templateLiteral(["user_", z.string()]),
+      timestamp: z.iso.datetime(),
+    }),
+  });
+
+  render(
+    <Form>
+      <Form.Field.Email data-testid="email" />
+      <Form.Field.LegacyEmail data-testid="legacy-email" />
+      <Form.Field.OptionalEmail data-testid="optional-email" />
+      <Form.Field.Website data-testid="website" />
+      <Form.Field.LegacyWebsite data-testid="legacy-website" />
+      <Form.Field.HttpWebsite data-testid="http-website" />
+      <Form.Field.Phone data-testid="phone" />
+      <Form.Field.LegacyPhone data-testid="legacy-phone" />
+      <Form.Field.Birthday data-testid="birthday" />
+      <Form.Field.LegacyBirthday data-testid="legacy-birthday" />
+      <Form.Field.Appointment data-testid="appointment" />
+      <Form.Field.LegacyAppointment data-testid="legacy-appointment" />
+      <Form.Field.Identifier data-testid="identifier" />
+      <Form.Field.Guid data-testid="guid" />
+      <Form.Field.Slug data-testid="slug" />
+      <Form.Field.Timestamp data-testid="timestamp" />
+    </Form>,
+  );
+
+  expect(screen.getByTestId("email")).toHaveAttribute("type", "email");
+  expect(screen.getByTestId("legacy-email")).toHaveAttribute("type", "email");
+  expect(screen.getByTestId("optional-email")).toHaveAttribute("type", "email");
+  expect(screen.getByTestId("website")).toHaveAttribute("type", "url");
+  expect(screen.getByTestId("legacy-website")).toHaveAttribute("type", "url");
+  expect(screen.getByTestId("http-website")).toHaveAttribute("type", "url");
+  expect(screen.getByTestId("phone")).toHaveAttribute("type", "tel");
+  expect(screen.getByTestId("legacy-phone")).toHaveAttribute("type", "tel");
+  expect(screen.getByTestId("birthday")).toHaveAttribute("type", "date");
+  expect(screen.getByTestId("legacy-birthday")).toHaveAttribute("type", "date");
+  expect(screen.getByTestId("appointment")).toHaveAttribute("type", "time");
+  expect(screen.getByTestId("appointment")).toHaveAttribute("step", "any");
+  expect(screen.getByTestId("legacy-appointment")).toHaveAttribute(
+    "type",
+    "time",
+  );
+  expect(screen.getByTestId("identifier")).toHaveAttribute("type", "text");
+  expect(screen.getByTestId("guid")).toHaveAttribute("type", "text");
+  expect(screen.getByTestId("slug")).toHaveAttribute("type", "text");
+  expect(screen.getByTestId("timestamp")).toHaveAttribute("type", "text");
+});
+
+test("passes inferred input types to custom inputs", () => {
+  const Form = ozef({
+    schema: z.object({ email: z.email() }),
+    Input: ({ inputProps }) => (
+      <input data-testid="custom-email" data-inferred-type={inputProps?.type} />
+    ),
+  });
+
+  render(
+    <Form>
+      <Form.Field.Email />
+    </Form>,
+  );
+
+  expect(screen.getByTestId("custom-email")).toHaveAttribute(
+    "data-inferred-type",
+    "email",
+  );
+});
+
+test("supports strict and loose Zod object schemas", () => {
+  const StrictForm = ozef({
+    schema: z.strictObject({ email: z.email() }),
+  });
+  const LooseForm = ozef({
+    schema: z.looseObject({ website: z.url() }),
+  });
+
+  render(
+    <>
+      <StrictForm>
+        <StrictForm.Field.Email data-testid="strict-email" />
+      </StrictForm>
+      <LooseForm>
+        <LooseForm.Field.Website data-testid="loose-url" />
+      </LooseForm>
+    </>,
+  );
+
+  expect(screen.getByTestId("strict-email")).toHaveAttribute("type", "email");
+  expect(screen.getByTestId("loose-url")).toHaveAttribute("type", "url");
+});
+
 test("renders union literal fields as select options and submits the selected value", async () => {
   const onSubmit = jest.fn();
   const Form = ozef({
@@ -97,6 +210,8 @@ test("renders union literal fields as select options and submits the selected va
   );
 
   expect(screen.getByTestId("color").tagName).toBe("SELECT");
+  expect(screen.getByRole("combobox")).toBe(screen.getByTestId("color"));
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Red" })).toHaveAttribute(
     "value",
     "Red",
@@ -113,6 +228,101 @@ test("renders union literal fields as select options and submits the selected va
 
   await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   expect(onSubmit.mock.calls[0][0]).toEqual({ color: "Blue" });
+});
+
+test("renders accessible native controls without axe violations", async () => {
+  const Form = ozef({
+    schema: z.object({
+      email: z.email(),
+      marketing: z.boolean(),
+      plan: z.enum(["starter", "pro"]),
+      color: z.union([z.literal("red"), z.literal("blue")]),
+    }),
+    ariaLabel: "Account preferences",
+  });
+
+  const { container } = render(
+    <Form>
+      <label htmlFor="email">Email</label>
+      <Form.Field name="email" id="email" />
+
+      <label htmlFor="marketing">Marketing emails</label>
+      <Form.Field name="marketing" id="marketing" />
+
+      <fieldset>
+        <legend>Plan</legend>
+        <Form.Field name="plan">
+          <label>
+            <Form.Radio name="plan" value="starter" />
+            Starter
+          </label>
+          <label>
+            <Form.Radio name="plan" value="pro" />
+            Pro
+          </label>
+        </Form.Field>
+      </fieldset>
+
+      <label htmlFor="color">Color</label>
+      <Form.Field name="color" id="color">
+        <Form.Option name="color" value="red">
+          Red
+        </Form.Option>
+        <Form.Option name="color" value="blue">
+          Blue
+        </Form.Option>
+      </Form.Field>
+
+      <Form.Submit>Save</Form.Submit>
+    </Form>,
+  );
+
+  expect(await axe(container)).toHaveNoViolations();
+});
+
+test("applies generated ARIA state to native controls", () => {
+  const Form = ozef({
+    schema: z.object({
+      name: z.string().min(1),
+      enabled: z.boolean(),
+      size: z.enum(["small", "large"]),
+      color: z.union([z.literal("red"), z.literal("blue")]),
+    }),
+  });
+
+  render(
+    <Form>
+      <Form.Field name="name" data-testid="name" disabled />
+      <Form.Field name="enabled" data-testid="enabled" />
+      <Form.Field name="size" data-testid="size-group">
+        <Form.Radio name="size" value="small" data-testid="small" />
+        <Form.Radio name="size" value="large" data-testid="large" />
+      </Form.Field>
+      <Form.Field name="color" data-testid="color">
+        <Form.Option name="color" value="red" data-testid="red" />
+        <Form.Option name="color" value="blue" data-testid="blue" />
+      </Form.Field>
+    </Form>,
+  );
+
+  expect(screen.getByTestId("name")).toHaveAttribute("aria-required", "true");
+  expect(screen.getByTestId("name")).toHaveAttribute("aria-invalid", "false");
+  expect(screen.getByTestId("name")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByTestId("enabled")).toHaveAttribute("aria-checked", "false");
+  expect(screen.getByTestId("size-group")).toHaveAttribute(
+    "role",
+    "radiogroup",
+  );
+  expect(screen.getByTestId("small")).toHaveAttribute("aria-checked", "false");
+  expect(screen.getByTestId("red")).not.toHaveAttribute("role");
+  expect(screen.getByTestId("red")).toHaveAttribute("aria-selected", "true");
+  expect((screen.getByTestId("red") as HTMLOptionElement).selected).toBe(true);
+
+  fireEvent.click(screen.getByTestId("enabled"));
+  fireEvent.click(screen.getByTestId("small"));
+
+  expect(screen.getByTestId("enabled")).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByTestId("small")).toHaveAttribute("aria-checked", "true");
 });
 
 test("submits the initial native select value when the user does not change it", async () => {

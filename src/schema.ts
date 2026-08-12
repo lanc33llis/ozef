@@ -32,6 +32,48 @@ export const unwrapZodType = (scheme: ZodTypeAny): ZodTypeAny => {
 export const getZodTypeName = (scheme: ZodTypeAny) =>
   getZodKind(unwrapZodType(scheme));
 
+const getZodStringFormat = (scheme: ZodTypeAny) => {
+  const unwrapped = unwrapZodType(scheme);
+  const def = getZodDef(unwrapped);
+
+  if (typeof (unwrapped as any).format === "string") {
+    return (unwrapped as any).format as string;
+  }
+
+  if (typeof def.format === "string") {
+    return def.format;
+  }
+
+  for (const check of [...(def.checks ?? [])].reverse()) {
+    const checkDef = (check as any)._zod?.def ?? getZodDef(check);
+
+    if (typeof checkDef?.format === "string") {
+      return checkDef.format;
+    }
+  }
+};
+
+export const getZodInputType = (scheme: ZodTypeAny) => {
+  if (getZodTypeName(scheme) === "number") {
+    return "number";
+  }
+
+  switch (getZodStringFormat(scheme)) {
+    case "email":
+      return "email";
+    case "url":
+      return "url";
+    case "e164":
+      return "tel";
+    case "date":
+      return "date";
+    case "time":
+      return "time";
+    default:
+      return "text";
+  }
+};
+
 export const isRequired = (scheme: ZodTypeAny) => !scheme.isOptional();
 
 export const parseFormValue = (scheme: ZodTypeAny, value: unknown) => {

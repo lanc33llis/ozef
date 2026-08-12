@@ -16,6 +16,7 @@ import {
   getErrorMessage,
   getLiteralValue,
   getUnionOptions,
+  getZodInputType,
   getZodTypeName,
   isRequired,
   parseFormValue,
@@ -234,13 +235,16 @@ function ozef<
     props: FieldProps,
   ) => {
     const scheme = getScheme(name);
-    const type = getZodTypeName(scheme) === "number" ? "number" : "text";
+    const type = getZodInputType(scheme);
     const errorClassName = props.errorClassName;
     const inputProps = stripInputMetaProps(props);
 
     return {
       ...inputProps,
       type,
+      ...((type === "number" || type === "time") && {
+        step: inputProps.step ?? "any",
+      }),
       name,
       value: field.value ?? "",
       className: applyErrorClassName(
@@ -362,7 +366,6 @@ function ozef<
         {...props}
         name={name}
         value={value}
-        role="option"
         aria-selected={field.value === value}
       >
         {props.children ?? value}
@@ -454,8 +457,9 @@ function ozef<
     } else if (getZodTypeName(scheme) === "union") {
       FieldComponent = (props: FormSelectProps) => {
         const field = useFieldState(key);
-        const id = useId();
+        const generatedId = useId();
         const selectProps = stripInputMetaProps(props);
+        const id = selectProps.id ?? generatedId;
 
         useEffect(() => {
           const elem = document.getElementById(id) as HTMLSelectElement | null;
@@ -470,7 +474,6 @@ function ozef<
           id,
           name: key,
           value: field.value ?? "",
-          role: "listbox",
           "aria-disabled": selectProps.disabled ?? false,
           "aria-invalid": field.invalid,
           "aria-required": field.required,
